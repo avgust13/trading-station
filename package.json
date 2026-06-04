@@ -4,7 +4,7 @@
   "private": true,
   "description": "Daily Intel — a live market dashboard. Next.js (App Router) + React + TypeScript + styled-components, with the data API co-located as a Route Handler using yahoo-finance2.",
   "scripts": {
-    "dev": "next dev -p 8888",
+    "dev": "next dev -p 8889",
     "build": "next build",
     "start": "next start -p 8888",
     "typecheck": "tsc --noEmit"

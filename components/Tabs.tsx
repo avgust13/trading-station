@@ -5,6 +5,7 @@ import styled from "styled-components";
 
 import { Dashboard } from "./Dashboard";
 import { Placeholder } from "./Placeholder";
+import { Sessions } from "./Sessions";
 
 type TabKey = "overview" | "sessions" | "reporting" | "risk";
 
@@ -67,7 +68,7 @@ export function Tabs() {
         ))}
       </Bar>
       {active === "overview" && <Dashboard />}
-      {active === "sessions" && <Placeholder title="Sessions" />}
+      {active === "sessions" && <Sessions />}
       {active === "reporting" && <Placeholder title="Reporting" />}
       {active === "risk" && <Placeholder title="Risk" />}
     </>
