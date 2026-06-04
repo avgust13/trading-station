@@ -5,6 +5,7 @@ import styled from "styled-components";
 
 import { Dashboard } from "./Dashboard";
 import { Placeholder } from "./Placeholder";
+import { RiskCalculator } from "./RiskCalculator";
 import { Sessions } from "./Sessions";
 
 type TabKey = "overview" | "sessions" | "reporting" | "risk";
@@ -70,7 +71,7 @@ export function Tabs() {
       {active === "overview" && <Dashboard />}
       {active === "sessions" && <Sessions />}
       {active === "reporting" && <Placeholder title="Reporting" />}
-      {active === "risk" && <Placeholder title="Risk" />}
+      {active === "risk" && <RiskCalculator />}
     </>
   );
 }
