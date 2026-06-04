@@ -6,12 +6,13 @@ import styled from "styled-components";
 import { Dashboard } from "./Dashboard";
 import { Placeholder } from "./Placeholder";
 
-type TabKey = "overview" | "sessions" | "reporting";
+type TabKey = "overview" | "sessions" | "reporting" | "risk";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "sessions", label: "Sessions" },
   { key: "reporting", label: "Reporting" },
+  { key: "risk", label: "Risk" },
 ];
 
 const Bar = styled.nav`
@@ -68,6 +69,7 @@ export function Tabs() {
       {active === "overview" && <Dashboard />}
       {active === "sessions" && <Placeholder title="Sessions" />}
       {active === "reporting" && <Placeholder title="Reporting" />}
+      {active === "risk" && <Placeholder title="Risk" />}
     </>
   );
 }
