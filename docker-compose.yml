@@ -1,5 +1,5 @@
 services:
-  weekly-market-report:
+  daily-intel:
     build: .
     ports:
       - "8888:8888"

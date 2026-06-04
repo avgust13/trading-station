@@ -1,29 +1,23 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.egg-info/
-dist/
-build/
-.eggs/
+# Dependencies
+/node_modules
 
-# Virtual environment
-.venv/
-venv/
-env/
+# Next.js
+/.next/
+/out/
+/build
 
-# Generated reports
-report.html
-report_email.html
+# Debug logs
+npm-debug.log*
 
 # Environment variables
 .env
 .env.*
 
-# VS Code
-.vscode/
+# TypeScript
+next-env.d.ts
+*.tsbuildinfo
 
-# OS
+# Editor / OS
+.vscode/
 .DS_Store
 Thumbs.db

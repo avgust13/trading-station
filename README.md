@@ -1,148 +1,107 @@
 # Daily Intel
 
-A small Python + Flask project that builds and serves a weekly market dashboard using Yahoo Finance data.
+A live market dashboard. Tracks a curated set of symbols (equities, sectors, bonds, crude, crypto)
+and shows previous/latest price, daily change, and weekly / MTD / YTD percent moves with color-coded
+cells and embedded TradingView mini-charts.
 
-The project includes:
-- A live web page with a Refresh button and color-coded market moves
-- A reusable report generator that can output browser and email-friendly HTML
-- A lightweight API for market rows and ticker metadata
-- A Docker image for easy local/container runs
+Built as a single **Next.js** (App Router) app:
 
-## Features
-
-- Tracks a curated set of market symbols (equities, sectors, bonds, crude, crypto)
-- Computes:
-  - Previous close (Yest)
-  - Latest close (Today)
-  - Daily change and percent change
-  - Weekly percent change (approx. last 5 trading days)
-  - MTD and YTD percent change
-- Adds ticker descriptions for hover tooltips and a glossary block
-- Falls back to sample data when live data is unavailable
-
-## Project Structure
-
-- `server.py` - Flask app that serves the UI and JSON endpoints
-- `weekly_market_report.py` - Data fetch + report rendering logic
-- `index.html` - Browser UI that fetches `/api/data`
-- `report.html` - Standalone generated report preview
-- `requirements.txt` - Python dependencies
-- `Dockerfile` - Container build/run definition
+- **UI** — React + TypeScript + styled-components
+- **API** — co-located Route Handler (`app/api/data`) that fetches via [`yahoo-finance2`](https://www.npmjs.com/package/yahoo-finance2)
+- **One app, one process** — no separate backend. `yahoo-finance2` runs server-side in the route
+  handler (it can't run in the browser — CORS/cookies); the UI just calls `/api/data` on the same origin.
 
 ## Requirements
 
-- Python 3.10+ (tested with 3.12 in Docker)
-- Internet access for live Yahoo Finance pulls
+- Node.js 20+ (tested with Node 22)
 
-## Local Setup (.venv)
-
-1. Create a local virtual environment named `.venv`:
+## Setup
 
 ```bash
-python -m venv .venv
+npm install
 ```
 
-2. Activate it:
-
-Windows (PowerShell):
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
-Windows (cmd):
-
-```bat
-.venv\Scripts\activate.bat
-```
-
-macOS/Linux:
+## Develop
 
 ```bash
-source .venv/bin/activate
+npm run dev
 ```
 
-3. Install dependencies:
+Open http://localhost:8888 and click the refresh icon (top-right) to fetch live data. On reload the
+last fetched snapshot is shown from `localStorage`; a fresh fetch happens only when you click refresh.
+
+## Build & run (production)
 
 ```bash
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+npm run build
+npm start
 ```
 
-## Run the Web App
+Open http://localhost:8888.
+
+## Type-check
 
 ```bash
-python server.py
-```
-
-If your environment is not active yet, activate `.venv` first using the commands above.
-
-Open:
-- http://localhost:8888
-
-On the page, click **Refresh data** to load the latest values.
-
-## API Endpoints
-
-- `GET /api/data`
-  - Returns:
-    - `as_of`: display date for latest close
-    - `rows`: computed metrics per symbol
-  - Returns HTTP 502 if no live rows are available
-
-- `GET /api/tickers`
-  - Returns symbol metadata (`symbol`, `name`, `desc`)
-
-## Generate Report Files Directly
-
-Run the report script:
-
-```bash
-python weekly_market_report.py
-```
-
-Outputs:
-- `report.html` - full standalone page
-- `report_email.html` - email-body-friendly HTML snippet
-
-Use sample/offline mode:
-
-```bash
-python weekly_market_report.py --sample
+npm run typecheck
 ```
 
 ## Run with Docker
 
-Using Docker Compose (recommended — starts automatically with Docker):
+The image uses Next.js `output: "standalone"` for a small, self-contained server.
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
-To stop:
+Then open http://localhost:8888. To stop:
 
 ```bash
 docker compose down
 ```
 
-Or build and run manually (one-off, no auto-restart):
+## API
 
-```bash
-docker build -t weekly-market-report .
-docker run --rm -p 8888:8888 weekly-market-report
+- `GET /api/data` — `{ as_of, rows, source: "live" }`. Each row:
+  `{ symbol, name, desc, yest, today, chg, chg_pct, wk_pct, mtd_pct, ytd_pct, as_of, price_basis }`.
+  Returns HTTP 502 if no live rows are available.
+
+## Metrics
+
+Per symbol, against ~18 months of daily closes from Yahoo Finance:
+
+- **Yest** — previous close
+- **Today** — live quote when available, otherwise the latest close
+- **Chg / Chg %** — daily change
+- **Wk %** — vs. ~5 trading days ago
+- **MTD % / YTD %** — vs. the last close of the prior month / year
+
+## Project structure
+
 ```
-
-Then open http://localhost:8888.
-
-## Dependencies
-
-Pinned in `requirements.txt`:
-- Flask
-- yfinance
-- pandas
+app/
+  layout.tsx          Root layout: styled-components registry + theme/global styles
+  page.tsx            Renders <Dashboard/>
+  registry.tsx        styled-components SSR registry (App Router)
+  providers.tsx       ThemeProvider + GlobalStyle (client)
+  api/data/route.ts   GET handler -> fetchAll() -> JSON (Node runtime, dynamic)
+components/           Client UI: Dashboard, RefreshButton, StatusBar, MarketTable, MarketRow,
+                      ChangeCell, ChartFrame
+lib/
+  market.ts           yahoo-finance2 fetch + metric math (server-only)
+  tickers.ts          Curated instrument list
+  types.ts            Shared types
+  format.ts           Number formatting + color classification
+  display.ts          Russian descriptions + TradingView symbols/links
+  cache.ts            localStorage snapshot cache
+  api.ts              Typed fetch of /api/data
+  theme.ts            Dark palette + fonts
+  GlobalStyle.ts      Global reset/body styles
+next.config.mjs       styled-components compiler, standalone output, yahoo-finance2 external
+```
 
 ## Notes
 
-- Data source is Yahoo Finance via yfinance.
-- Market availability and symbol support depend on Yahoo Finance responses.
-- If live fetch fails, running `weekly_market_report.py` will fall back to sample data.
+- Data source is Yahoo Finance via `yahoo-finance2`, which must run server-side (CORS/cookies), so
+  the browser only ever talks to this app's `/api/data`.
+- Market availability and symbol support depend on Yahoo Finance responses; per-symbol fetch failures
+  are skipped rather than failing the whole request.
