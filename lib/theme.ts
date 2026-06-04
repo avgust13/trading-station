@@ -10,6 +10,7 @@ export interface AppTheme {
     price: string;
     green: string;
     red: string;
+    border: string;
   };
   fonts: {
     sans: string;
@@ -27,6 +28,7 @@ export const theme: AppTheme = {
     price: "#93c5fd",
     green: "#22c55e",
     red: "#ef4444",
+    border: "#1f2937",
   },
   fonts: {
     sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
