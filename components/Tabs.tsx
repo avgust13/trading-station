@@ -3,8 +3,8 @@
 import { useState } from "react";
 import styled from "styled-components";
 
+import { MarketCalendar } from "./calendar/MarketCalendar";
 import { Dashboard } from "./Dashboard";
-import { Placeholder } from "./Placeholder";
 import { RiskCalculator } from "./RiskCalculator";
 import { Sessions } from "./Sessions";
 
@@ -70,7 +70,7 @@ export function Tabs() {
       </Bar>
       {active === "overview" && <Dashboard />}
       {active === "sessions" && <Sessions />}
-      {active === "calendar" && <Placeholder title="Calendar" />}
+      {active === "calendar" && <MarketCalendar />}
       {active === "risk" && <RiskCalculator />}
     </>
   );

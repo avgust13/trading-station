@@ -16,6 +16,15 @@ export interface AppTheme {
     sans: string;
     mono: string;
   };
+  /** Semantic colors for calendar event categories (impact + type). */
+  event: {
+    high: string;
+    medium: string;
+    low: string;
+    earnings: string;
+    centralBank: string;
+    crypto: string;
+  };
 }
 
 export const theme: AppTheme = {
@@ -33,5 +42,13 @@ export const theme: AppTheme = {
   fonts: {
     sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
     mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
+  },
+  event: {
+    high: "#ef4444", // red — high impact
+    medium: "#f59e0b", // orange — medium impact
+    low: "#9ca3af", // gray — low impact
+    earnings: "#60a5fa", // blue — earnings
+    centralBank: "#a78bfa", // purple — Fed / central banks
+    crypto: "#22c55e", // green — crypto
   },
 };
