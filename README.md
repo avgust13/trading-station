@@ -1,4 +1,4 @@
-# Daily Intel
+# Trading Station
 
 A live market dashboard. Tracks a curated set of symbols (equities, sectors, bonds, crude, crypto)
 and shows previous/latest price, daily change, and weekly / MTD / YTD percent moves with color-coded

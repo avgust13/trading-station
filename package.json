@@ -1,8 +1,8 @@
 {
-  "name": "daily-intel",
+  "name": "trading-station",
   "version": "1.0.0",
   "private": true,
-  "description": "Daily Intel — a live market dashboard. Next.js (App Router) + React + TypeScript + styled-components, with the data API co-located as a Route Handler using yahoo-finance2.",
+  "description": "Trading Station — a live market dashboard. Next.js (App Router) + React + TypeScript + styled-components, with the data API co-located as a Route Handler using yahoo-finance2.",
   "scripts": {
     "dev": "next dev -p 8889",
     "build": "next build",

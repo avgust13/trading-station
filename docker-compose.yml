@@ -1,5 +1,5 @@
 services:
-  daily-intel:
+  trading-station:
     build: .
     ports:
       - "8888:8888"

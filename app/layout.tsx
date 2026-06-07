@@ -5,7 +5,7 @@ import { Providers } from "./providers";
 import { StyledComponentsRegistry } from "./registry";
 
 export const metadata: Metadata = {
-  title: "Daily Intel",
+  title: "Trading Station",
   description: "A live market dashboard.",
 };
 
