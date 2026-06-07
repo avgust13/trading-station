@@ -8,12 +8,12 @@ import { Placeholder } from "./Placeholder";
 import { RiskCalculator } from "./RiskCalculator";
 import { Sessions } from "./Sessions";
 
-type TabKey = "overview" | "sessions" | "reporting" | "risk";
+type TabKey = "overview" | "sessions" | "calendar" | "risk";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "sessions", label: "Sessions" },
-  { key: "reporting", label: "Reporting" },
+  { key: "calendar", label: "Calendar" },
   { key: "risk", label: "Risk" },
 ];
 
@@ -70,7 +70,7 @@ export function Tabs() {
       </Bar>
       {active === "overview" && <Dashboard />}
       {active === "sessions" && <Sessions />}
-      {active === "reporting" && <Placeholder title="Reporting" />}
+      {active === "calendar" && <Placeholder title="Calendar" />}
       {active === "risk" && <RiskCalculator />}
     </>
   );
