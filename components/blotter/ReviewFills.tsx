@@ -151,7 +151,13 @@ interface RowComputed {
   valid: boolean;
 }
 
-function computeRow(row: RowDraft, dateKey: string, zone: string, existingIds: Set<string>): RowComputed {
+function computeRow(
+  row: RowDraft,
+  exchangeId: string,
+  dateKey: string,
+  zone: string,
+  existingIds: Set<string>,
+): RowComputed {
   const qty = parseFloat(row.qty);
   const price = parseFloat(row.price);
   const iso = composeUtcInstant(row.date ?? dateKey, row.time, zone);
@@ -163,7 +169,7 @@ function computeRow(row: RowDraft, dateKey: string, zone: string, existingIds: S
     price > 0 &&
     iso !== null;
   const id = valid
-    ? fillFingerprint({ symbol: row.symbol, side: row.side, qty, price, executedAt: iso! })
+    ? fillFingerprint({ exchangeId, symbol: row.symbol, side: row.side, qty, price, executedAt: iso! })
     : null;
   return { iso, id, duplicate: id !== null && existingIds.has(id), valid };
 }
@@ -171,6 +177,7 @@ function computeRow(row: RowDraft, dateKey: string, zone: string, existingIds: S
 export function ReviewFills({
   parsed,
   notes,
+  exchangeId,
   dateKey,
   zone,
   existingIds,
@@ -179,6 +186,7 @@ export function ReviewFills({
 }: {
   parsed: ParsedFill[];
   notes: string | null;
+  exchangeId: string;
   dateKey: string;
   zone: string;
   existingIds: Set<string>;
@@ -200,8 +208,8 @@ export function ReviewFills({
   );
 
   const computed = useMemo(
-    () => rows.map((r) => computeRow(r, dateKey, zone, existingIds)),
-    [rows, dateKey, zone, existingIds],
+    () => rows.map((r) => computeRow(r, exchangeId, dateKey, zone, existingIds)),
+    [rows, exchangeId, dateKey, zone, existingIds],
   );
 
   const patch = (i: number, p: Partial<RowDraft>) =>
@@ -223,6 +231,7 @@ export function ReviewFills({
     seen.add(c.id);
     accepted.push({
       id: c.id,
+      exchangeId,
       symbol: r.symbol.toUpperCase().trim(),
       side: r.side,
       qty: parseFloat(r.qty),

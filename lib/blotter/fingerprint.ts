@@ -5,9 +5,14 @@ import type { Fill } from "./types";
  * deliberately used instead of a hash — readable in devtools and debuggable.
  */
 export function fillFingerprint(
-  f: Pick<Fill, "symbol" | "side" | "qty" | "price" | "executedAt">,
+  f: Pick<Fill, "exchangeId" | "symbol" | "side" | "qty" | "price" | "executedAt">,
 ): string {
-  return [f.symbol.toUpperCase(), f.side, f.qty.toFixed(4), f.price.toFixed(4), f.executedAt].join(
-    "|",
-  );
+  return [
+    f.exchangeId,
+    f.symbol.toUpperCase(),
+    f.side,
+    f.qty.toFixed(4),
+    f.price.toFixed(4),
+    f.executedAt,
+  ].join("|");
 }

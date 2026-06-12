@@ -4,16 +4,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 
 import { groupFills } from "@/lib/blotter/grouping";
-import { computeStats } from "@/lib/blotter/stats";
+import { computeExchangeSummaries, computeStats } from "@/lib/blotter/stats";
 import {
+  apiAddExchange,
   apiAddFills,
   apiClearAll,
+  apiDeleteExchange,
   apiDeleteFills,
   apiSaveNote,
+  apiUpdateExchange,
   fetchBlotterState,
 } from "@/lib/blotter/storage";
-import type { BlotterState, Fill, Trade } from "@/lib/blotter/types";
+import type { BlotterState, Exchange, Fill, Trade } from "@/lib/blotter/types";
 import type { TzMode } from "@/lib/calendar/datetime";
+import { ExchangeManager } from "./ExchangeManager";
+import { ExchangesPanel } from "./ExchangesPanel";
 import { ImportPanel, readImageFile, type PastedImage } from "./ImportPanel";
 import { StatsBar } from "./StatsBar";
 import { TradeDetails } from "./TradeDetails";
@@ -66,6 +71,23 @@ const ImportBtn = styled.button`
 
   &:hover {
     background: ${({ theme }) => `${theme.colors.accent}33`};
+  }
+`;
+
+const SecondaryBtn = styled.button`
+  appearance: none;
+  cursor: pointer;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: transparent;
+  color: ${({ theme }) => theme.colors.muted};
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.fg};
   }
 `;
 
@@ -126,7 +148,9 @@ export function Blotter() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [managerOpen, setManagerOpen] = useState(false);
   const [pendingImage, setPendingImage] = useState<PastedImage | null>(null);
+  const [activeExchangeId, setActiveExchangeId] = useState<string | "all">("all");
 
   const load = useCallback(() => {
     setLoadError(null);
@@ -143,6 +167,16 @@ export function Blotter() {
   useEffect(() => {
     load();
   }, [load]);
+
+  /** Update local state + ref without persisting (used after an awaited call). */
+  const applyLocal = useCallback((fn: (s: BlotterState) => BlotterState) => {
+    setState((prev) => {
+      if (!prev) return prev;
+      const next = fn(prev);
+      stateRef.current = next;
+      return next;
+    });
+  }, []);
 
   /**
    * Optimistic mutation: apply locally right away, persist via the API, and
@@ -168,11 +202,40 @@ export function Blotter() {
   );
 
   const fills = state?.fills;
+  const exchanges = useMemo(() => state?.exchanges ?? [], [state]);
   const trades = useMemo(() => (fills ? groupFills(fills) : []), [fills]);
-  const stats = useMemo(() => computeStats(trades, DISPLAY_TZ), [trades]);
+  const breakdown = useMemo(
+    () => computeExchangeSummaries(trades, exchanges, DISPLAY_TZ),
+    [trades, exchanges],
+  );
+
+  const visibleTrades = useMemo(
+    () => (activeExchangeId === "all" ? trades : trades.filter((t) => t.exchangeId === activeExchangeId)),
+    [trades, activeExchangeId],
+  );
+  const stats = useMemo(() => computeStats(visibleTrades, DISPLAY_TZ), [visibleTrades]);
+  const capital =
+    activeExchangeId === "all"
+      ? breakdown.total.capital
+      : (exchanges.find((e) => e.id === activeExchangeId)?.capital ?? 0);
+
   const existingIds = useMemo(() => new Set((fills ?? []).map((f) => f.id)), [fills]);
-  const selectedTrade: Trade | null =
-    trades.find((t) => t.id === selectedTradeId) ?? null;
+  const exchangeNameOf = useCallback(
+    (id: string) => exchanges.find((e) => e.id === id)?.name ?? "—",
+    [exchanges],
+  );
+  const tradeCountByExchange = useCallback(
+    (id: string) => trades.filter((t) => t.exchangeId === id).length,
+    [trades],
+  );
+  const selectedTrade: Trade | null = trades.find((t) => t.id === selectedTradeId) ?? null;
+
+  // Drop the filter if its exchange disappears.
+  useEffect(() => {
+    if (activeExchangeId !== "all" && !exchanges.some((e) => e.id === activeExchangeId)) {
+      setActiveExchangeId("all");
+    }
+  }, [exchanges, activeExchangeId]);
 
   // Pasting or dropping a screenshot directly on the blotter page opens the
   // import modal with that image.
@@ -280,13 +343,72 @@ export function Blotter() {
   );
 
   const clearAll = useCallback(() => {
-    if (!window.confirm("Очистить весь журнал сделок? Действие необратимо.")) return;
+    if (!window.confirm("Очистить весь журнал сделок? Биржи и капитал останутся.")) return;
     mutate(
-      () => ({ version: 1, fills: [], tradeNotes: {} }),
+      (s) => ({ ...s, fills: [], tradeNotes: {} }),
       () => apiClearAll(),
     );
     setSelectedTradeId(null);
   }, [mutate]);
+
+  // Exchange CRUD. Add is non-optimistic (the server assigns the id).
+  const addExchange = useCallback(
+    async (name: string, capitalValue: number) => {
+      setSaveError(null);
+      try {
+        const ex = await apiAddExchange(name, capitalValue);
+        applyLocal((s) => ({ ...s, exchanges: [...s.exchanges, ex] }));
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : "Не удалось создать биржу.");
+      }
+    },
+    [applyLocal],
+  );
+
+  const updateExchange = useCallback(
+    (id: string, patch: { name?: string; capital?: number }) => {
+      mutate(
+        (s) => ({
+          ...s,
+          exchanges: s.exchanges.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+        }),
+        () => apiUpdateExchange(id, patch),
+      );
+    },
+    [mutate],
+  );
+
+  const deleteExchange = useCallback(
+    (ex: Exchange) => {
+      const count = tradeCountByExchange(ex.id);
+      if (
+        !window.confirm(
+          `Удалить биржу «${ex.name}»? Будут удалены её сделки (${count}) и капитал. Действие необратимо.`,
+        )
+      ) {
+        return;
+      }
+      mutate(
+        (s) => {
+          const removedFillIds = new Set(
+            s.fills.filter((f) => f.exchangeId === ex.id).map((f) => f.id),
+          );
+          const tradeNotes = { ...s.tradeNotes };
+          for (const k of Object.keys(tradeNotes)) {
+            if (removedFillIds.has(k)) delete tradeNotes[k];
+          }
+          return {
+            ...s,
+            exchanges: s.exchanges.filter((e) => e.id !== ex.id),
+            fills: s.fills.filter((f) => f.exchangeId !== ex.id),
+            tradeNotes,
+          };
+        },
+        () => apiDeleteExchange(ex.id),
+      );
+    },
+    [mutate, tradeCountByExchange],
+  );
 
   return (
     <Page>
@@ -303,6 +425,9 @@ export function Blotter() {
             Очистить журнал
           </ClearBtn>
         )}
+        <SecondaryBtn type="button" onClick={() => setManagerOpen(true)}>
+          ⚙ Биржи
+        </SecondaryBtn>
         <ImportBtn type="button" onClick={() => setImportOpen(true)}>
           + Импорт сделок
         </ImportBtn>
@@ -321,10 +446,18 @@ export function Blotter() {
         <LoadingNote>Загрузка журнала…</LoadingNote>
       ) : (
         <>
-          <StatsBar stats={stats} />
+          <ExchangesPanel
+            breakdown={breakdown}
+            activeExchangeId={activeExchangeId}
+            onSelect={setActiveExchangeId}
+            onManage={() => setManagerOpen(true)}
+          />
+          <StatsBar stats={stats} capital={capital} />
           <TradesTable
-            trades={trades}
+            trades={visibleTrades}
             tz={DISPLAY_TZ}
+            showExchange={activeExchangeId === "all" && exchanges.length > 1}
+            exchangeName={exchangeNameOf}
             onSelect={setSelectedTradeId}
             onDelete={deleteTrade}
           />
@@ -333,9 +466,11 @@ export function Blotter() {
 
       {importOpen && (
         <ImportPanel
+          exchanges={exchanges}
           existingIds={existingIds}
           initialImage={pendingImage}
           onAdd={addFills}
+          onManageExchanges={() => setManagerOpen(true)}
           onClose={() => {
             setImportOpen(false);
             setPendingImage(null);
@@ -343,10 +478,22 @@ export function Blotter() {
         />
       )}
 
+      {managerOpen && (
+        <ExchangeManager
+          exchanges={exchanges}
+          tradeCountByExchange={tradeCountByExchange}
+          onAdd={addExchange}
+          onUpdate={updateExchange}
+          onDelete={deleteExchange}
+          onClose={() => setManagerOpen(false)}
+        />
+      )}
+
       <TradeDetails
         trade={selectedTrade}
         note={selectedTrade && state ? (state.tradeNotes[selectedTrade.id] ?? "") : ""}
         tz={DISPLAY_TZ}
+        exchangeName={selectedTrade ? exchangeNameOf(selectedTrade.exchangeId) : null}
         onClose={() => setSelectedTradeId(null)}
         onSaveNote={saveNote}
         onDeleteFill={deleteFill}

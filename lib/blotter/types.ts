@@ -8,10 +8,22 @@
 export type Side = "buy" | "sell";
 export type Direction = "long" | "short";
 
+/** A trading account/exchange with its own capital. */
+export interface Exchange {
+  /** Stable id, assigned by the server via crypto.randomUUID(). */
+  id: string;
+  /** "Interactive Brokers", "Binance", … */
+  name: string;
+  /** Current capital on this exchange, USD. */
+  capital: number;
+}
+
 /** One execution, stored as the source of truth. */
 export interface Fill {
   /** Dedupe fingerprint (see fingerprint.ts). Also the storage key. */
   id: string;
+  /** Which exchange/account this execution belongs to (Exchange.id). */
+  exchangeId: string;
   /** Broker ticker, uppercase: "AMD". */
   symbol: string;
   side: Side;
@@ -39,6 +51,8 @@ export interface TradeFill {
 export interface Trade {
   /** = first entry's fillId; stable across regroups so notes survive. */
   id: string;
+  /** Carried from the trade's fills (all fills of a trade share one exchange). */
+  exchangeId: string;
   symbol: string;
   direction: Direction;
   entries: TradeFill[];
@@ -57,7 +71,8 @@ export interface Trade {
 }
 
 export interface BlotterState {
-  version: 1;
+  version: 2;
+  exchanges: Exchange[];
   fills: Fill[];
   /** Notes keyed by Trade.id. */
   tradeNotes: Record<string, string>;

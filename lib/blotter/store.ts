@@ -1,9 +1,10 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-import type { BlotterState, Fill } from "./types";
+import type { BlotterState, Exchange, Fill } from "./types";
 
 // Server-side persistence: one pretty-printed JSON file holding the whole
 // BlotterState. All operations are synchronous, so a read-modify-write never
@@ -15,7 +16,26 @@ function dataPath(): string {
 }
 
 function emptyState(): BlotterState {
-  return { version: 1, fills: [], tradeNotes: {} };
+  return { version: 2, exchanges: [], fills: [], tradeNotes: {} };
+}
+
+/**
+ * Migrate a v1 state (no exchanges, fills without exchangeId) to v2. Any
+ * orphan fills are reassigned to a freshly-created "Default" exchange so the
+ * journal stays consistent. The current file is empty, so this is for safety.
+ */
+function migrateV1(parsed: { fills?: unknown; tradeNotes?: unknown }): BlotterState {
+  const rawFills = Array.isArray(parsed.fills) ? (parsed.fills as Fill[]) : [];
+  const tradeNotes =
+    parsed.tradeNotes && typeof parsed.tradeNotes === "object"
+      ? (parsed.tradeNotes as Record<string, string>)
+      : {};
+  if (rawFills.length === 0) {
+    return { version: 2, exchanges: [], fills: [], tradeNotes };
+  }
+  const defaultExchange: Exchange = { id: randomUUID(), name: "Default", capital: 0 };
+  const fills = rawFills.map((f) => ({ ...f, exchangeId: f.exchangeId || defaultExchange.id }));
+  return { version: 2, exchanges: [defaultExchange], fills, tradeNotes };
 }
 
 function readState(): BlotterState {
@@ -27,15 +47,25 @@ function readState(): BlotterState {
     return emptyState(); // no file yet
   }
   try {
-    const parsed = JSON.parse(raw) as Partial<BlotterState>;
-    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.fills)) {
+    const parsed = JSON.parse(raw) as {
+      version?: number;
+      exchanges?: unknown;
+      fills?: unknown;
+      tradeNotes?: unknown;
+    };
+    if (!parsed || !Array.isArray(parsed.fills)) throw new Error("unexpected shape");
+    if (parsed.version === 1) return migrateV1(parsed);
+    if (parsed.version !== 2 || !Array.isArray(parsed.exchanges)) {
       throw new Error("unexpected shape");
     }
     return {
-      version: 1,
-      fills: parsed.fills,
+      version: 2,
+      exchanges: parsed.exchanges as Exchange[],
+      fills: parsed.fills as Fill[],
       tradeNotes:
-        parsed.tradeNotes && typeof parsed.tradeNotes === "object" ? parsed.tradeNotes : {},
+        parsed.tradeNotes && typeof parsed.tradeNotes === "object"
+          ? (parsed.tradeNotes as Record<string, string>)
+          : {},
     };
   } catch {
     // Don't lose a corrupt file — set it aside and start fresh.
@@ -60,11 +90,15 @@ export function storeGetState(): BlotterState {
   return readState();
 }
 
-/** Insert fills, skipping ids already present. Returns how many were added. */
+/**
+ * Insert fills, skipping ids already present and any whose exchangeId doesn't
+ * reference an existing exchange. Returns how many were actually added.
+ */
 export function storeAddFills(fills: Fill[]): number {
   const state = readState();
   const existing = new Set(state.fills.map((f) => f.id));
-  const fresh = fills.filter((f) => !existing.has(f.id));
+  const knownExchanges = new Set(state.exchanges.map((e) => e.id));
+  const fresh = fills.filter((f) => !existing.has(f.id) && knownExchanges.has(f.exchangeId));
   if (fresh.length > 0) {
     state.fills.push(...fresh);
     writeState(state);
@@ -90,5 +124,43 @@ export function storeSetNote(tradeId: string, note: string): void {
 }
 
 export function storeClearAll(): void {
-  writeState(emptyState());
+  // Keep the configured exchanges; only wipe trades and notes.
+  const state = readState();
+  writeState({ ...state, fills: [], tradeNotes: {} });
+}
+
+export function storeAddExchange(name: string, capital: number): Exchange {
+  const state = readState();
+  const exchange: Exchange = { id: randomUUID(), name: name.trim(), capital };
+  state.exchanges.push(exchange);
+  writeState(state);
+  return exchange;
+}
+
+export function storeUpdateExchange(
+  id: string,
+  patch: { name?: string; capital?: number },
+): Exchange | null {
+  const state = readState();
+  const exchange = state.exchanges.find((e) => e.id === id);
+  if (!exchange) return null;
+  if (typeof patch.name === "string") exchange.name = patch.name.trim();
+  if (typeof patch.capital === "number") exchange.capital = patch.capital;
+  writeState(state);
+  return exchange;
+}
+
+/** Delete an exchange and cascade: drop all its fills (notes of orphaned trades
+ *  are pruned too — any note whose trade id is one of the deleted fill ids). */
+export function storeDeleteExchange(id: string): void {
+  const state = readState();
+  const removedFillIds = new Set(
+    state.fills.filter((f) => f.exchangeId === id).map((f) => f.id),
+  );
+  state.exchanges = state.exchanges.filter((e) => e.id !== id);
+  state.fills = state.fills.filter((f) => f.exchangeId !== id);
+  for (const tradeId of Object.keys(state.tradeNotes)) {
+    if (removedFillIds.has(tradeId)) delete state.tradeNotes[tradeId];
+  }
+  writeState(state);
 }

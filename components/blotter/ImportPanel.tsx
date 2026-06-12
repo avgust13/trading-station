@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 
-import type { BlotterApiError, Fill, ParseResponse } from "@/lib/blotter/types";
+import type { BlotterApiError, Exchange, Fill, ParseResponse } from "@/lib/blotter/types";
 import { resolveTz, todayKey, TZ_OPTIONS, type TzMode } from "@/lib/calendar/datetime";
 import { ReviewFills } from "./ReviewFills";
+
+const LAST_EXCHANGE_KEY = "blotter-last-exchange";
 
 export interface PastedImage {
   dataUrl: string;
@@ -249,6 +251,18 @@ const ErrorStrip = styled.div`
   line-height: 1.5;
 `;
 
+const NoExchanges = styled.div`
+  text-align: center;
+  padding: 16px 8px 8px;
+  color: ${({ theme }) => theme.colors.muted};
+  font-size: 13.5px;
+  line-height: 1.6;
+
+  p {
+    margin: 0 0 14px;
+  }
+`;
+
 export function readImageFile(file: File, cb: (img: PastedImage) => void) {
   const reader = new FileReader();
   reader.onload = () => {
@@ -285,25 +299,45 @@ function pickDroppedFile(
 }
 
 export function ImportPanel({
+  exchanges,
   existingIds,
   initialImage,
   onAdd,
+  onManageExchanges,
   onClose,
 }: {
+  exchanges: Exchange[];
   existingIds: Set<string>;
   initialImage: PastedImage | null;
   onAdd: (fills: Fill[]) => void;
+  onManageExchanges: () => void;
   onClose: () => void;
 }) {
   const [image, setImage] = useState<PastedImage | null>(initialImage);
   const [text, setText] = useState("");
   const [dateKey, setDateKey] = useState(() => todayKey("local"));
   const [tzMode, setTzMode] = useState<TzMode>("newYork");
+  const [exchangeId, setExchangeId] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParseResponse | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Default the exchange picker to the last-used one (if it still exists),
+  // otherwise the first exchange. Re-runs when the exchange list changes.
+  useEffect(() => {
+    if (exchanges.length === 0) {
+      setExchangeId("");
+      return;
+    }
+    setExchangeId((cur) => {
+      if (cur && exchanges.some((e) => e.id === cur)) return cur;
+      const last = typeof window !== "undefined" ? localStorage.getItem(LAST_EXCHANGE_KEY) : null;
+      if (last && exchanges.some((e) => e.id === last)) return last;
+      return exchanges[0].id;
+    });
+  }, [exchanges]);
 
   // Catch image pastes anywhere in the modal (the textarea handles text itself).
   useEffect(() => {
@@ -374,15 +408,18 @@ export function ImportPanel({
         setError("Не найдено ни одного исполнения. Проверьте вставленные данные.");
         return;
       }
+      if (exchangeId) localStorage.setItem(LAST_EXCHANGE_KEY, exchangeId);
       setParsed(json);
     } catch {
       setError("Не удалось распознать сделки. Проверьте соединение.");
     } finally {
       setBusy(false);
     }
-  }, [image, text]);
+  }, [image, text, exchangeId]);
 
-  const canRecognize = !busy && (image !== null || text.trim().length > 0);
+  const hasExchanges = exchanges.length > 0;
+  const canRecognize =
+    !busy && hasExchanges && exchangeId !== "" && (image !== null || text.trim().length > 0);
 
   return (
     <Overlay onClick={onClose} role="dialog" aria-modal="true" aria-label="Импорт сделок">
@@ -398,15 +435,37 @@ export function ImportPanel({
             <ReviewFills
               parsed={parsed.fills}
               notes={parsed.notes}
+              exchangeId={exchangeId}
               dateKey={dateKey}
               zone={resolveTz(tzMode)}
               existingIds={existingIds}
               onConfirm={onAdd}
               onBack={() => setParsed(null)}
             />
+          ) : !hasExchanges ? (
+            <NoExchanges>
+              <p>Чтобы импортировать сделки, сначала добавьте хотя бы одну биржу с её капиталом.</p>
+              <PrimaryBtn type="button" onClick={onManageExchanges}>
+                + Добавить биржу
+              </PrimaryBtn>
+            </NoExchanges>
           ) : (
             <>
               <Controls>
+                <Field>
+                  <FieldLabel htmlFor="blotter-exchange">Биржа</FieldLabel>
+                  <TzSelect
+                    id="blotter-exchange"
+                    value={exchangeId}
+                    onChange={(e) => setExchangeId(e.target.value)}
+                  >
+                    {exchanges.map((ex) => (
+                      <option key={ex.id} value={ex.id}>
+                        {ex.name}
+                      </option>
+                    ))}
+                  </TzSelect>
+                </Field>
                 <Field>
                   <FieldLabel htmlFor="blotter-date">Дата сделок</FieldLabel>
                   <DateInput

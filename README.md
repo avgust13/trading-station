@@ -77,10 +77,13 @@ docker compose down
   raw broker order executions → `{ fills, notes }`. Requires `OPENAI_API_KEY`.
 - `GET /api/blotter/candles?symbol=&from=&to=` — intraday/daily OHLC candles from Yahoo Finance for
   the trade-details chart; the interval (1m…1d) degrades automatically with trade age.
-- `GET|DELETE /api/blotter/state`, `POST|DELETE /api/blotter/fills`, `PUT /api/blotter/notes` —
-  server-side journal persistence. Data lives in `data/blotter.json` (override the path with
-  `BLOTTER_DATA_PATH`); back it up by copying the file. In Docker the `./data` volume keeps it
-  across rebuilds.
+- `GET|DELETE /api/blotter/state`, `POST|DELETE /api/blotter/fills`, `PUT /api/blotter/notes`,
+  `POST|PUT|DELETE /api/blotter/exchanges` — server-side journal persistence. Data lives in
+  `data/blotter.json` (override the path with `BLOTTER_DATA_PATH`); back it up by copying the file.
+  In Docker the `./data` volume keeps it across rebuilds. The file is `{ version: 2, exchanges,
+  fills, tradeNotes }`: each fill is tagged with an `exchangeId`, trades are grouped per
+  (exchange, symbol), and each exchange carries a name + capital used for return-on-capital and
+  allocation. Deleting an exchange cascades to its fills.
 
 ## Metrics
 

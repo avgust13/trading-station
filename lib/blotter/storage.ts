@@ -1,10 +1,10 @@
-import type { BlotterApiError, BlotterState, Fill } from "./types";
+import type { BlotterApiError, BlotterState, Exchange, Fill } from "./types";
 
 // Client-side API for the server-stored journal (data/blotter.json behind
 // /api/blotter/*). Replaces the old localStorage persistence.
 
 export function emptyBlotterState(): BlotterState {
-  return { version: 1, fills: [], tradeNotes: {} };
+  return { version: 2, exchanges: [], fills: [], tradeNotes: {} };
 }
 
 async function parseError(res: Response, fallback: string): Promise<string> {
@@ -24,7 +24,7 @@ export async function fetchBlotterState(): Promise<BlotterState> {
   const res = await fetch("/api/blotter/state");
   if (!res.ok) throw new Error(await parseError(res, "Не удалось загрузить журнал."));
   const state = (await res.json()) as BlotterState;
-  if (state.version !== 1 || !Array.isArray(state.fills)) {
+  if (state.version !== 2 || !Array.isArray(state.fills) || !Array.isArray(state.exchanges)) {
     throw new Error("Сервер вернул некорректное состояние журнала.");
   }
   return state;
@@ -62,4 +62,35 @@ export async function apiSaveNote(tradeId: string, note: string): Promise<void> 
 export async function apiClearAll(): Promise<void> {
   const res = await fetch("/api/blotter/state", { method: "DELETE" });
   await expectOk(res, "Не удалось очистить журнал.");
+}
+
+export async function apiAddExchange(name: string, capital: number): Promise<Exchange> {
+  const res = await fetch("/api/blotter/exchanges", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, capital }),
+  });
+  if (!res.ok) throw new Error(await parseError(res, "Не удалось создать биржу."));
+  return (await res.json()) as Exchange;
+}
+
+export async function apiUpdateExchange(
+  id: string,
+  patch: { name?: string; capital?: number },
+): Promise<void> {
+  const res = await fetch("/api/blotter/exchanges", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, ...patch }),
+  });
+  await expectOk(res, "Не удалось обновить биржу.");
+}
+
+export async function apiDeleteExchange(id: string): Promise<void> {
+  const res = await fetch("/api/blotter/exchanges", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  await expectOk(res, "Не удалось удалить биржу.");
 }

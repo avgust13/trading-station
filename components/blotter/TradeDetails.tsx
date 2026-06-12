@@ -274,6 +274,7 @@ export function TradeDetails({
   trade,
   note,
   tz,
+  exchangeName,
   onClose,
   onSaveNote,
   onDeleteFill,
@@ -281,6 +282,7 @@ export function TradeDetails({
   trade: Trade | null;
   note: string;
   tz: TzMode;
+  exchangeName: string | null;
   onClose: () => void;
   onSaveNote: (tradeId: string, text: string) => void;
   onDeleteFill: (fillId: string) => void;
@@ -317,6 +319,7 @@ export function TradeDetails({
               <StatusText $open={open}>{open ? "Открыта" : "Закрыта"}</StatusText>
             </Title>
             <Meta>
+              {exchangeName ? `${exchangeName} · ` : ""}
               {enDateMed(dayKey(trade.openedAt, tz))} · {fmtTime(trade.openedAt, tz)}
               {trade.closedAt ? ` → ${fmtTime(trade.closedAt, tz)}` : ""}
             </Meta>

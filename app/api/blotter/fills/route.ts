@@ -12,6 +12,8 @@ function isFill(v: unknown): v is Fill {
   return (
     typeof f.id === "string" &&
     f.id.length > 0 &&
+    typeof f.exchangeId === "string" &&
+    f.exchangeId.length > 0 &&
     typeof f.symbol === "string" &&
     f.symbol.length > 0 &&
     (f.side === "buy" || f.side === "sell") &&

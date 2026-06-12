@@ -52,11 +52,17 @@ function Metric({ label, value, tone = "plain" }: { label: string; value: string
   );
 }
 
-export function StatsBar({ stats }: { stats: BlotterStats }) {
+export function StatsBar({ stats, capital }: { stats: BlotterStats; capital: number }) {
+  const returnPct = capital > 0 ? (stats.totalPnl / capital) * 100 : null;
   return (
     <Grid>
       <Metric label="P&L всего" value={fmtMoney(stats.totalPnl)} tone={pnlTone(stats.totalPnl)} />
       <Metric label="P&L сегодня" value={fmtMoney(stats.todayPnl)} tone={pnlTone(stats.todayPnl)} />
+      <Metric
+        label="P&L % от капитала"
+        value={returnPct === null ? "—" : `${returnPct >= 0 ? "+" : ""}${returnPct.toFixed(2)}%`}
+        tone={returnPct === null ? "plain" : pnlTone(returnPct)}
+      />
       <Metric
         label="Сделок"
         value={stats.openCount > 0 ? `${stats.tradeCount} + ${stats.openCount} откр.` : String(stats.tradeCount)}
