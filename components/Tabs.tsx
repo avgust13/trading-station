@@ -3,18 +3,20 @@
 import { useState } from "react";
 import styled from "styled-components";
 
+import { Blotter } from "./blotter/Blotter";
 import { MarketCalendar } from "./calendar/MarketCalendar";
 import { Dashboard } from "./Dashboard";
 import { RiskCalculator } from "./RiskCalculator";
 import { Sessions } from "./Sessions";
 
-type TabKey = "overview" | "sessions" | "calendar" | "risk";
+type TabKey = "overview" | "sessions" | "calendar" | "risk" | "blotter";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "sessions", label: "Sessions" },
   { key: "calendar", label: "Calendar" },
   { key: "risk", label: "Risk" },
+  { key: "blotter", label: "Blotter" },
 ];
 
 const Bar = styled.nav`
@@ -72,6 +74,7 @@ export function Tabs() {
       {active === "sessions" && <Sessions />}
       {active === "calendar" && <MarketCalendar />}
       {active === "risk" && <RiskCalculator />}
+      {active === "blotter" && <Blotter />}
     </>
   );
 }

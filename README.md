@@ -21,6 +21,15 @@ Built as a single **Next.js** (App Router) app:
 npm install
 ```
 
+The **Blotter** tab (AI trade-journal import) needs an OpenAI key. Put it in `.env.local`
+(or a system environment variable):
+
+```
+OPENAI_API_KEY=sk-...
+# optional, defaults to gpt-4o-mini:
+# OPENAI_MODEL=gpt-4o
+```
+
 ## Develop
 
 ```bash
@@ -64,6 +73,10 @@ docker compose down
 - `GET /api/data` — `{ as_of, rows, source: "live" }`. Each row:
   `{ symbol, name, desc, yest, today, chg, chg_pct, wk_pct, mtd_pct, ytd_pct, as_of, price_basis }`.
   Returns HTTP 502 if no live rows are available.
+- `POST /api/blotter/parse` — body `{ text }` or `{ imageBase64, imageMimeType }`; OpenAI extracts
+  raw broker order executions → `{ fills, notes }`. Requires `OPENAI_API_KEY`.
+- `GET /api/blotter/candles?symbol=&from=&to=` — intraday/daily OHLC candles from Yahoo Finance for
+  the trade-details chart; the interval (1m…1d) degrades automatically with trade age.
 
 ## Metrics
 
