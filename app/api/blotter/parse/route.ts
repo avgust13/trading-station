@@ -15,7 +15,7 @@ interface ParseRequestBody {
 export async function POST(req: Request) {
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json(
-      { error: "Не задан OPENAI_API_KEY в .env.local." } satisfies BlotterApiError,
+      { error: "Не задан OPENAI_API_KEY в .env." } satisfies BlotterApiError,
       { status: 500 },
     );
   }

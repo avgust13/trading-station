@@ -1,6 +1,11 @@
 services:
   trading-station:
     build: .
+    # OPENAI_API_KEY (and any OPENAI_MODEL override) is read at runtime by the
+    # Next.js standalone server. The .env file is gitignored and not baked into
+    # the image, so pass it in here.
+    env_file:
+      - .env
     ports:
       - "8888:8888"
     volumes:
