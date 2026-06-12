@@ -4,6 +4,8 @@ services:
     ports:
       - "8888:8888"
     volumes:
-      # Blotter journal (data/blotter.json) survives container rebuilds.
-      - ./data:/app/data
+      # Blotter journal (blotter.json) lives at this real host path, bind-mounted
+      # into the container. Mount the directory (not the file) so store.ts's
+      # atomic temp-file + rename write keeps working.
+      - "C:/Work/daily-intel/data:/app/data"
     restart: unless-stopped
