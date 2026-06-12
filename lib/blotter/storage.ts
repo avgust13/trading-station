@@ -1,35 +1,65 @@
-import type { BlotterState } from "./types";
+import type { BlotterApiError, BlotterState, Fill } from "./types";
 
-// localStorage persistence, mirroring lib/cache.ts. Fills are tiny (~150 bytes
-// each), so thousands fit comfortably under the quota.
-
-const BLOTTER_KEY = "trading-station-blotter-v1";
+// Client-side API for the server-stored journal (data/blotter.json behind
+// /api/blotter/*). Replaces the old localStorage persistence.
 
 export function emptyBlotterState(): BlotterState {
   return { version: 1, fills: [], tradeNotes: {} };
 }
 
-export function saveBlotter(state: BlotterState): void {
+async function parseError(res: Response, fallback: string): Promise<string> {
   try {
-    localStorage.setItem(BLOTTER_KEY, JSON.stringify(state));
+    const body = (await res.json()) as BlotterApiError;
+    return body.error || fallback;
   } catch {
-    // Keep the app usable if storage is blocked.
+    return fallback;
   }
 }
 
-export function loadBlotter(): BlotterState | null {
-  try {
-    const raw = localStorage.getItem(BLOTTER_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<BlotterState>;
-    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.fills)) return null;
-    return {
-      version: 1,
-      fills: parsed.fills,
-      tradeNotes:
-        parsed.tradeNotes && typeof parsed.tradeNotes === "object" ? parsed.tradeNotes : {},
-    };
-  } catch {
-    return null;
+async function expectOk(res: Response, fallback: string): Promise<void> {
+  if (!res.ok) throw new Error(await parseError(res, fallback));
+}
+
+export async function fetchBlotterState(): Promise<BlotterState> {
+  const res = await fetch("/api/blotter/state");
+  if (!res.ok) throw new Error(await parseError(res, "Не удалось загрузить журнал."));
+  const state = (await res.json()) as BlotterState;
+  if (state.version !== 1 || !Array.isArray(state.fills)) {
+    throw new Error("Сервер вернул некорректное состояние журнала.");
   }
+  return state;
+}
+
+export async function apiAddFills(fills: Fill[]): Promise<number> {
+  const res = await fetch("/api/blotter/fills", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fills }),
+  });
+  if (!res.ok) throw new Error(await parseError(res, "Не удалось сохранить исполнения."));
+  const body = (await res.json()) as { added: number };
+  return body.added;
+}
+
+export async function apiDeleteFills(ids: string[]): Promise<void> {
+  const res = await fetch("/api/blotter/fills", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  await expectOk(res, "Не удалось удалить исполнения.");
+}
+
+export async function apiSaveNote(tradeId: string, note: string): Promise<void> {
+  const res = await fetch("/api/blotter/notes", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tradeId, note }),
+  });
+  await expectOk(res, "Не удалось сохранить заметку.");
+}
+
+export async function apiClearAll(): Promise<void> {
+  const res = await fetch("/api/blotter/state", { method: "DELETE" });
+  await expectOk(res, "Не удалось очистить журнал.");
 }

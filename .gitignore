@@ -13,6 +13,9 @@ npm-debug.log*
 .env
 .env.*
 
+# Local data (blotter journal)
+/data/
+
 # TypeScript
 next-env.d.ts
 *.tsbuildinfo

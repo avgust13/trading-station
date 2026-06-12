@@ -3,4 +3,7 @@ services:
     build: .
     ports:
       - "8888:8888"
+    volumes:
+      # Blotter journal (data/blotter.json) survives container rebuilds.
+      - ./data:/app/data
     restart: unless-stopped
