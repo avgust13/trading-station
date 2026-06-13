@@ -17,6 +17,7 @@ import {
 } from "@/lib/blotter/storage";
 import type { BlotterState, Exchange, Fill, Trade } from "@/lib/blotter/types";
 import type { TzMode } from "@/lib/calendar/datetime";
+import { EquityCurve } from "./EquityCurve";
 import { ExchangeManager } from "./ExchangeManager";
 import { ExchangesPanel } from "./ExchangesPanel";
 import { ImportPanel, readImageFile, type PastedImage } from "./ImportPanel";
@@ -453,6 +454,7 @@ export function Blotter() {
             onManage={() => setManagerOpen(true)}
           />
           <StatsBar stats={stats} capital={capital} />
+          <EquityCurve trades={visibleTrades} capital={capital} />
           <TradesTable
             trades={visibleTrades}
             tz={DISPLAY_TZ}

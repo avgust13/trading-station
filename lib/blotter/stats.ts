@@ -99,3 +99,36 @@ export function computeExchangeSummaries(
     },
   };
 }
+
+export interface EquityPoint {
+  /** Unix seconds, UTC. */
+  time: number;
+  value: number;
+}
+
+/**
+ * Equity curve over closed trades: starts at `capital` (the deposit baseline)
+ * and steps by each closed trade's realizedPnl in `closedAt` order. Points that
+ * share a `closedAt` second are collapsed into one (lightweight-charts requires
+ * strictly ascending, unique times). Returns [] when there are no closed trades.
+ */
+export function buildEquityCurve(trades: Trade[], capital: number): EquityPoint[] {
+  const closed = trades
+    .filter((t): t is Trade & { closedAt: string } => t.status === "closed" && t.closedAt !== null)
+    .sort((a, b) => a.closedAt.localeCompare(b.closedAt));
+  if (closed.length === 0) return [];
+
+  const firstSec = Math.floor(Date.parse(closed[0].closedAt) / 1000);
+  // Anchor one second before the first close so the line visibly starts at the deposit.
+  const points: EquityPoint[] = [{ time: firstSec - 1, value: capital }];
+
+  let running = capital;
+  for (const t of closed) {
+    running += t.realizedPnl;
+    const time = Math.floor(Date.parse(t.closedAt) / 1000);
+    const last = points[points.length - 1];
+    if (last.time === time) last.value = running;
+    else points.push({ time, value: running });
+  }
+  return points;
+}
