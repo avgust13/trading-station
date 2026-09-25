@@ -255,7 +255,12 @@ function fmtOffset(min: number): string {
 function fmtDur(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  if (h === 0) return `${m} мин`;
+  return m ? `${h} ч ${m} мин` : `${h} ч`;
+}
+/** Whole minutes (rounded up, never 0) until view-hour `target` next comes round. */
+function minsUntil(target: number, h: number): number {
+  return Math.ceil((mod24(target - h) || 24) * 60);
 }
 function inSpan(sp: Span, h: number): boolean {
   return (h >= sp.start && h < sp.end) || (h + 24 >= sp.start && h + 24 < sp.end);
@@ -309,11 +314,12 @@ function project(at: Date, viewTz: string): View {
   };
 }
 
-function nextOpen(spans: Record<SessionKey, Span>, h: number): { name: string; inMin: number } {
-  const next = SESSIONS.map((s) => ({ name: s.ru, d: mod24(spans[s.key].start - h) || 24 })).reduce((a, b) =>
-    b.d < a.d ? b : a,
-  );
-  return { name: next.name, inMin: Math.round(next.d * 60) };
+function nextOpen(spans: Record<SessionKey, Span>, h: number): { name: string; at: string; inMin: number } {
+  return SESSIONS.map((s) => ({
+    name: s.ru,
+    at: fmtH(spans[s.key].start),
+    inMin: minsUntil(spans[s.key].start, h),
+  })).reduce((a, b) => (b.inMin < a.inMin ? b : a));
 }
 
 /* ----------------------------------------------------------------------------
@@ -362,7 +368,19 @@ const StatusRow = styled.div`
   flex-wrap: wrap;
   gap: 8px;
   min-height: 30px;
-  margin-bottom: 16px;
+`;
+
+/**
+ * Single flex item inside a Badge, so inline `<b>` times don't pick up the
+ * badge gap. May wrap, so a long pill still fits a phone-width row.
+ */
+const StatusText = styled.span`
+  white-space: normal;
+
+  b {
+    color: ${({ theme }) => theme.colors.fg};
+    font-weight: 700;
+  }
 `;
 
 const PlotScroll = styled.div`
@@ -816,26 +834,37 @@ export function Sessions() {
             </TzSelect>
           </Clock>
         }
-      />
-
-      <StatusRow>
-        {activeSessions.map((s) => (
-          <Badge key={s.key} color={s.color} size="md">
-            ● {s.ru} — открыта
-          </Badge>
-        ))}
-        {inOverlap && (
-          <Badge color={OVERLAP.color} size="md">
-            ⚡ Overlap — пик волатильности
-          </Badge>
-        )}
-        {now && activeSessions.length === 0 && <Badge size="md">Тихо — между сессиями</Badge>}
-        {next && (
-          <Badge size="md" style={{ marginLeft: "auto" }}>
-            Дальше: {next.name} через {fmtDur(next.inMin)}
-          </Badge>
-        )}
-      </StatusRow>
+      >
+        <StatusRow>
+          {view &&
+            activeSessions.map((s) => {
+              const end = view.spans[s.key].end;
+              return (
+                <Badge key={s.key} color={s.color} size="md">
+                  <StatusText>
+                    ● {s.ru} — закроется в <b>{fmtH(end)}</b> · через {fmtDur(minsUntil(end, view.h))}
+                  </StatusText>
+                </Badge>
+              );
+            })}
+          {view?.overlap && inOverlap && (
+            <Badge color={OVERLAP.color} size="md">
+              <StatusText>
+                ⚡ Overlap — пик волатильности до <b>{fmtH(view.overlap.end)}</b> · ещё{" "}
+                {fmtDur(minsUntil(view.overlap.end, view.h))}
+              </StatusText>
+            </Badge>
+          )}
+          {now && activeSessions.length === 0 && <Badge size="md">Тихо — между сессиями</Badge>}
+          {next && (
+            <Badge size="md">
+              <StatusText>
+                Дальше: {next.name} откроется в <b>{next.at}</b> · через {fmtDur(next.inMin)}
+              </StatusText>
+            </Badge>
+          )}
+        </StatusRow>
+      </PageHeader>
 
       <PlotScroll>
         <Plot>
