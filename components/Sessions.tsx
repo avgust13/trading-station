@@ -1,22 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styled, { keyframes } from "styled-components";
 
-import { Badge, Card, Page, PageHeader, SectionTitle } from "@/components/ui";
+import { Badge, Card, Page, PageHeader, SectionTitle, Select } from "@/components/ui";
 
 /* ----------------------------------------------------------------------------
- * Session data — all times in Georgia time (GET = UTC+4, no daylight saving).
- * Russian notes/hints are from the user's trading brief.
+ * Session data. Each session is anchored to its home exchange's local hours
+ * (so DST is handled automatically) and projected onto the viewer's selected
+ * time zone at render time. Russian notes/hints are from the user's trading brief.
  * -------------------------------------------------------------------------- */
 
+type SessionKey = "asia" | "london" | "newyork";
+type RowKey = SessionKey | "overlap";
+
 interface SessionInfo {
-  key: string;
+  key: SessionKey;
   name: string;
   ru: string;
-  range: string;
-  start: number; // hours (0–24)
-  end: number; // hours (24 = midnight)
+  tz: string; // home IANA zone
+  open: number; // local hours in `tz`
+  close: number;
   color: string;
   assets: string;
   notes: string[];
@@ -28,9 +32,9 @@ const SESSIONS: SessionInfo[] = [
     key: "asia",
     name: "Asia",
     ru: "Азия",
-    range: "03:00–12:00",
-    start: 3,
-    end: 12,
+    tz: "Asia/Tokyo",
+    open: 8,
+    close: 17,
     color: "#22d3ee",
     assets: "JPY · AUD · NZD · азиатские индексы",
     notes: [
@@ -44,9 +48,9 @@ const SESSIONS: SessionInfo[] = [
     key: "london",
     name: "London",
     ru: "Лондон",
-    range: "11:00–19:30",
-    start: 11,
-    end: 19.5,
+    tz: "Europe/London",
+    open: 8,
+    close: 16.5,
     color: "#60a5fa",
     assets: "EUR · GBP · CHF",
     notes: [
@@ -60,9 +64,9 @@ const SESSIONS: SessionInfo[] = [
     key: "newyork",
     name: "New York",
     ru: "Нью-Йорк",
-    range: "17:30–00:00",
-    start: 17.5,
-    end: 24,
+    tz: "America/New_York",
+    open: 9.5,
+    close: 16,
     color: "#f59e0b",
     assets: "USD · индексы США · золото · нефть",
     notes: [
@@ -75,36 +79,16 @@ const SESSIONS: SessionInfo[] = [
 ];
 
 interface RowDef {
-  key: string;
+  key: RowKey;
   name: string;
-  range: string;
-  start: number;
-  end: number;
   color: string;
   overlap?: boolean;
 }
 
-const OVERLAP: RowDef = {
-  key: "overlap",
-  name: "Overlap",
-  range: "17:30–19:30",
-  start: 17.5,
-  end: 19.5,
-  color: "#f43f5e",
-  overlap: true,
-};
+/** London ∩ New York — computed from the two sessions, not stored. */
+const OVERLAP: RowDef = { key: "overlap", name: "Overlap", color: "#f43f5e", overlap: true };
 
-const ROWS: RowDef[] = [
-  ...SESSIONS.map((s) => ({
-    key: s.key,
-    name: s.name,
-    range: s.range,
-    start: s.start,
-    end: s.end,
-    color: s.color,
-  })),
-  OVERLAP,
-];
+const ROWS: RowDef[] = [...SESSIONS.map(({ key, name, color }) => ({ key, name, color })), OVERLAP];
 
 const PLAYBOOK: { num: number; color: string; html: { name: string; rest: string } }[] = [
   { num: 1, color: "#22d3ee", html: { name: "Азия", rest: " формирует диапазон — цена ходит в боковике." } },
@@ -129,11 +113,69 @@ const ASSETS: { name: string; win: string }[] = [
   { name: "Oil", win: "Европа + США" },
 ];
 
-const KEY_WINDOWS = [
-  { time: "11:00–13:00", label: "Старт Лондона — первый пробой азиатского диапазона" },
-  { time: "17:30–20:00", label: "Открытие США + overlap — пик волатильности" },
-  { time: "после 20:00", label: "Продолжение тренда или затухание движения" },
+/** Key trading windows, relative to the session opens they hang off. */
+function keyWindows(spans: Record<SessionKey, Span>): { time: string; label: string }[] {
+  const lon = spans.london.start;
+  const ny = spans.newyork.start;
+  return [
+    { time: fmtRange({ start: lon, end: lon + 2 }), label: "Старт Лондона — первый пробой азиатского диапазона" },
+    { time: fmtRange({ start: ny, end: ny + 2.5 }), label: "Открытие США + overlap — пик волатильности" },
+    { time: `после ${fmtH(ny + 2.5)}`, label: "Продолжение тренда или затухание движения" },
+  ];
+}
+
+/* ----------------------------------------------------------------------------
+ * Viewer time zones. Offsets are read live from Intl, so DST is always right.
+ * The choice is remembered per browser (guarded: private mode just no-ops).
+ * -------------------------------------------------------------------------- */
+
+const ZONE_LIST: { tz: string; city: string }[] = [
+  { tz: "Pacific/Honolulu", city: "Гонолулу" },
+  { tz: "America/Anchorage", city: "Анкоридж" },
+  { tz: "America/Los_Angeles", city: "Лос-Анджелес" },
+  { tz: "America/Denver", city: "Денвер" },
+  { tz: "America/Chicago", city: "Чикаго" },
+  { tz: "America/New_York", city: "Нью-Йорк" },
+  { tz: "America/Sao_Paulo", city: "Сан-Паулу" },
+  { tz: "UTC", city: "Всемирное время" },
+  { tz: "Europe/London", city: "Лондон" },
+  { tz: "Europe/Berlin", city: "Берлин / Франкфурт" },
+  { tz: "Europe/Kyiv", city: "Киев" },
+  { tz: "Europe/Istanbul", city: "Стамбул" },
+  { tz: "Europe/Moscow", city: "Москва" },
+  { tz: "Asia/Tbilisi", city: "Тбилиси" },
+  { tz: "Asia/Dubai", city: "Дубай" },
+  { tz: "Asia/Yekaterinburg", city: "Екатеринбург" },
+  { tz: "Asia/Tashkent", city: "Ташкент" },
+  { tz: "Asia/Almaty", city: "Алматы" },
+  { tz: "Asia/Kolkata", city: "Мумбаи" },
+  { tz: "Asia/Novosibirsk", city: "Новосибирск" },
+  { tz: "Asia/Bangkok", city: "Бангкок" },
+  { tz: "Asia/Hong_Kong", city: "Гонконг" },
+  { tz: "Asia/Singapore", city: "Сингапур" },
+  { tz: "Asia/Tokyo", city: "Токио" },
+  { tz: "Australia/Sydney", city: "Сидней" },
+  { tz: "Asia/Vladivostok", city: "Владивосток" },
+  { tz: "Pacific/Auckland", city: "Окленд" },
 ];
+
+const DEFAULT_TZ = "Asia/Tbilisi";
+const LS_TZ = "sessions.tz";
+
+function lsGet(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function lsSet(key: string, val: string): void {
+  try {
+    window.localStorage.setItem(key, val);
+  } catch {
+    /* ignore */
+  }
+}
 
 const GRID_HOURS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -143,11 +185,54 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
  * Time helpers
  * -------------------------------------------------------------------------- */
 
-function georgiaNow(): Date {
-  return new Date(Date.now() + 4 * 3600 * 1000); // UTC+4, no DST
+/** Hours in the viewer's day; `end` may run past 24 when a span crosses midnight. */
+interface Span {
+  start: number;
+  end: number;
 }
+
+const FMT = new Map<string, Intl.DateTimeFormat>();
+function fmtFor(tz: string): Intl.DateTimeFormat {
+  let f = FMT.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+    });
+    FMT.set(tz, f);
+  }
+  return f;
+}
+
+// Drop any zone this runtime's tz database doesn't know, instead of crashing.
+const ZONES = ZONE_LIST.filter((z) => {
+  try {
+    fmtFor(z.tz);
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+/** Minutes east of UTC for `tz` at instant `at`. */
+function tzOffsetMin(tz: string, at: Date): number {
+  const parts = fmtFor(tz).formatToParts(at);
+  const get = (t: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === t)?.value);
+  const wall = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"), get("second"));
+  return Math.round((wall - Math.floor(at.getTime() / 1000) * 1000) / 60_000);
+}
+
 function hoursFloat(d: Date): number {
   return d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
+}
+function mod24(h: number): number {
+  return ((h % 24) + 24) % 24;
 }
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -155,24 +240,80 @@ function pad(n: number): string {
 function pct(h: number): number {
   return (h / 24) * 100;
 }
+function fmtH(h: number): string {
+  const m = ((Math.round(h * 60) % 1440) + 1440) % 1440;
+  return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+}
+function fmtRange(sp: Span): string {
+  return `${fmtH(sp.start)}–${fmtH(sp.end)}`;
+}
+function fmtOffset(min: number): string {
+  if (min === 0) return "UTC";
+  const a = Math.abs(min);
+  return `UTC${min > 0 ? "+" : "−"}${Math.floor(a / 60)}${a % 60 ? `:${pad(a % 60)}` : ""}`;
+}
 function fmtDur(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
-function isActive(s: { start: number; end: number }, h: number): boolean {
-  return h >= s.start && h < s.end;
+function inSpan(sp: Span, h: number): boolean {
+  return (h >= sp.start && h < sp.end) || (h + 24 >= sp.start && h + 24 < sp.end);
 }
-function nextOpen(h: number): { name: string; inMin: number } {
-  let best: { name: string; start: number } | null = null;
-  for (const s of SESSIONS) {
-    if (s.start > h && (!best || s.start < best.start)) best = { name: s.ru, start: s.start };
-  }
-  if (!best) {
-    const earliest = SESSIONS.reduce((a, b) => (a.start < b.start ? a : b));
-    best = { name: earliest.ru, start: earliest.start + 24 };
-  }
-  return { name: best.name, inMin: Math.round((best.start - h) * 60) };
+/** Split a span at midnight into bar segments on the 0–24 axis. */
+function segments(sp: Span): { from: number; to: number; cut?: "left" | "right" }[] {
+  if (sp.end <= 24) return [{ from: sp.start, to: sp.end }];
+  return [
+    { from: sp.start, to: 24, cut: "right" },
+    { from: 0, to: sp.end - 24, cut: "left" },
+  ];
+}
+
+interface View {
+  offset: number; // viewer zone, minutes east of UTC
+  local: Date; // viewer wall-clock time — read it via getUTC*
+  h: number;
+  spans: Record<SessionKey, Span>;
+  overlap: Span | null;
+}
+
+/** Project every session onto the viewer's zone at instant `at`. */
+function project(at: Date, viewTz: string): View {
+  const offset = tzOffsetMin(viewTz, at);
+  const toView = (u: Span): Span => {
+    const start = mod24(u.start + offset / 60);
+    return { start, end: start + (u.end - u.start) };
+  };
+  // Unwrapped UTC hours, so London/NY can be intersected directly.
+  const utc = Object.fromEntries(
+    SESSIONS.map((s) => {
+      const off = tzOffsetMin(s.tz, at) / 60;
+      return [s.key, { start: s.open - off, end: s.close - off }];
+    }),
+  ) as Record<SessionKey, Span>;
+  const ov = {
+    start: Math.max(utc.london.start, utc.newyork.start),
+    end: Math.min(utc.london.end, utc.newyork.end),
+  };
+  const local = new Date(at.getTime() + offset * 60_000);
+  return {
+    offset,
+    local,
+    h: hoursFloat(local),
+    spans: {
+      asia: toView(utc.asia),
+      london: toView(utc.london),
+      newyork: toView(utc.newyork),
+    },
+    overlap: ov.end > ov.start ? toView(ov) : null,
+  };
+}
+
+function nextOpen(spans: Record<SessionKey, Span>, h: number): { name: string; inMin: number } {
+  const next = SESSIONS.map((s) => ({ name: s.ru, d: mod24(spans[s.key].start - h) || 24 })).reduce((a, b) =>
+    b.d < a.d ? b : a,
+  );
+  return { name: next.name, inMin: Math.round(next.d * 60) };
 }
 
 /* ----------------------------------------------------------------------------
@@ -205,6 +346,15 @@ const ClockDate = styled.div`
   color: ${({ theme }) => theme.colors.muted};
   font-size: 12px;
   margin-top: 2px;
+`;
+
+const TzSelect = styled(Select)`
+  width: auto;
+  max-width: 220px;
+  margin-top: 8px;
+  padding: 5px 8px;
+  font-size: 12px;
+  cursor: pointer;
 `;
 
 const StatusRow = styled.div`
@@ -279,11 +429,11 @@ const Track = styled.div`
   height: 100%;
 `;
 
-const Bar = styled.div<{ $color: string; $active: boolean; $overlap: boolean }>`
+const Bar = styled.div<{ $color: string; $active: boolean; $overlap: boolean; $cut?: "left" | "right" }>`
   position: absolute;
   top: ${({ $overlap }) => ($overlap ? 15 : 9)}px;
   bottom: ${({ $overlap }) => ($overlap ? 15 : 9)}px;
-  border-radius: 6px;
+  border-radius: ${({ $cut }) => ($cut === "right" ? "6px 0 0 6px" : $cut === "left" ? "0 6px 6px 0" : "6px")};
   background: ${({ $color, $active }) => ($active ? $color : `${$color}3d`)};
   box-shadow: ${({ $active, $color }) =>
     $active ? `0 0 0 1px ${$color}, 0 0 14px ${$color}66` : "none"};
@@ -606,33 +756,64 @@ const Note = styled.div`
 
 export function Sessions() {
   const [now, setNow] = useState<Date | null>(null);
+  const [tz, setTz] = useState(DEFAULT_TZ);
 
   useEffect(() => {
-    setNow(georgiaNow());
-    const id = setInterval(() => setNow(georgiaNow()), 1000);
+    const saved = lsGet(LS_TZ);
+    if (saved && ZONES.some((z) => z.tz === saved)) setTz(saved);
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  const h = now ? hoursFloat(now) : null;
-  const activeSessions = h != null ? SESSIONS.filter((s) => isActive(s, h)) : [];
-  const inOverlap = h != null && isActive(OVERLAP, h);
-  const next = h != null ? nextOpen(h) : null;
+  const changeTz = (next: string) => {
+    setTz(next);
+    lsSet(LS_TZ, next);
+  };
+
+  // Dropdown labels carry live offsets; they only change at DST switches, so
+  // recompute hourly rather than every tick.
+  const hourKey = now ? Math.floor(now.getTime() / 3_600_000) : null;
+  const zoneOpts = useMemo(() => {
+    if (hourKey == null) return ZONES.map((z) => ({ ...z, label: z.city }));
+    const at = new Date(hourKey * 3_600_000);
+    return ZONES.map((z) => ({ ...z, offset: tzOffsetMin(z.tz, at) }))
+      .sort((a, b) => a.offset - b.offset)
+      .map((z) => ({ ...z, label: `${fmtOffset(z.offset)} · ${z.city}` }));
+  }, [hourKey]);
+
+  const view = now ? project(now, tz) : null;
+  const local = view?.local ?? null;
+  const h = view?.h ?? null;
+  const spanOf = (k: RowKey): Span | null => (!view ? null : k === "overlap" ? view.overlap : view.spans[k]);
+  const activeSessions = view ? SESSIONS.filter((s) => inSpan(view.spans[s.key], view.h)) : [];
+  const inOverlap = Boolean(view?.overlap && inSpan(view.overlap, view.h));
+  const next = view ? nextOpen(view.spans, view.h) : null;
+  const offLabel = view ? fmtOffset(view.offset) : "";
+  const city = ZONES.find((z) => z.tz === tz)?.city ?? tz;
 
   return (
     <Page>
       <PageHeader
         title="Market Sessions"
-        subtitle="When the major markets are open — Georgia time (GET, UTC+4)"
+        subtitle="When the major markets are open"
         actions={
           <Clock>
             <ClockTime>
-              {now
-                ? `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())}`
+              {local
+                ? `${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}:${pad(local.getUTCSeconds())}`
                 : "––:––:––"}
             </ClockTime>
             <ClockDate>
-              {now ? `${WEEKDAYS[now.getUTCDay()]}, ${MONTHS[now.getUTCMonth()]} ${now.getUTCDate()}` : " "}
+              {local ? `${WEEKDAYS[local.getUTCDay()]}, ${MONTHS[local.getUTCMonth()]} ${local.getUTCDate()}` : " "}
             </ClockDate>
+            <TzSelect value={tz} onChange={(e) => changeTz(e.target.value)} aria-label="Часовой пояс">
+              {zoneOpts.map((z) => (
+                <option key={z.tz} value={z.tz}>
+                  {z.label}
+                </option>
+              ))}
+            </TzSelect>
           </Clock>
         }
       />
@@ -660,7 +841,8 @@ export function Sessions() {
         <Plot>
           <Rows>
             {ROWS.map((s) => {
-              const active = h != null && isActive(s, h);
+              const sp = spanOf(s.key);
+              const active = sp != null && h != null && inSpan(sp, h);
               return (
                 <Row key={s.key}>
                   <Gutter>
@@ -668,15 +850,20 @@ export function Sessions() {
                       {s.name}
                       {active && <LiveDot $c={s.color} />}
                     </GName>
-                    <GRange>{s.range}</GRange>
+                    <GRange>{sp ? fmtRange(sp) : "––:––"}</GRange>
                   </Gutter>
                   <Track>
-                    <Bar
-                      $color={s.color}
-                      $active={active}
-                      $overlap={Boolean(s.overlap)}
-                      style={{ left: `${pct(s.start)}%`, width: `${pct(s.end) - pct(s.start)}%` }}
-                    />
+                    {sp &&
+                      segments(sp).map((seg) => (
+                        <Bar
+                          key={seg.from}
+                          $color={s.color}
+                          $active={active}
+                          $overlap={Boolean(s.overlap)}
+                          $cut={seg.cut}
+                          style={{ left: `${pct(seg.from)}%`, width: `${pct(seg.to) - pct(seg.from)}%` }}
+                        />
+                      ))}
                   </Track>
                 </Row>
               );
@@ -687,9 +874,9 @@ export function Sessions() {
             {GRID_HOURS.map((gh) => (
               <GridLine key={gh} style={{ left: `${pct(gh)}%` }} />
             ))}
-            {now && h != null && (
+            {local && h != null && (
               <Now style={{ left: `${pct(h)}%` }}>
-                <NowTag>{`${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`}</NowTag>
+                <NowTag>{`${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`}</NowTag>
                 <NowDot />
                 <NowLine />
               </Now>
@@ -706,7 +893,8 @@ export function Sessions() {
 
       <Cards>
         {SESSIONS.map((s) => {
-          const active = h != null && isActive(s, h);
+          const sp = view?.spans[s.key];
+          const active = activeSessions.includes(s);
           return (
             <Card key={s.key} $accent={s.color} $active={active}>
               <CardHead>
@@ -714,7 +902,7 @@ export function Sessions() {
                 <CardEn>{s.name}</CardEn>
                 {active && <CardLive $c={s.color}>● сейчас</CardLive>}
               </CardHead>
-              <CardTime>{s.range} · GET</CardTime>
+              <CardTime>{sp ? `${fmtRange(sp)} · ${offLabel}` : "––:––"}</CardTime>
               <CardAssets>
                 <b>Активы:</b> {s.assets}
               </CardAssets>
@@ -733,7 +921,9 @@ export function Sessions() {
 
       <Card $accent={OVERLAP.color} $active={inOverlap} $tint style={{ marginTop: 14 }}>
         <CalloutTitle>
-          ⚡ Лондон + Нью-Йорк (overlap) · 17:30–19:30{inOverlap ? " · идёт сейчас" : ""}
+          ⚡ Лондон + Нью-Йорк (overlap)
+          {view?.overlap ? ` · ${fmtRange(view.overlap)}` : ""}
+          {inOverlap ? " · идёт сейчас" : ""}
         </CalloutTitle>
         <CalloutText>
           Одновременно торгуют Европа и США — самая высокая ликвидность дня. Сильные движения по
@@ -774,8 +964,11 @@ export function Sessions() {
       </Section>
 
       <Section>
-        <SectionTitle $strong>Ключевые окна (по Грузии)</SectionTitle>
-        {KEY_WINDOWS.map((w) => (
+        <SectionTitle $strong>
+          Ключевые окна ({city}
+          {view ? `, ${offLabel}` : ""})
+        </SectionTitle>
+        {(view ? keyWindows(view.spans) : []).map((w) => (
           <WindowItem key={w.time}>
             <WTime>{w.time}</WTime>
             <WLabel>{w.label}</WLabel>
@@ -786,8 +979,8 @@ export function Sessions() {
           себя цена именно там.
         </Tip>
         <Note>
-          Время привязано к Грузии (UTC+4). Лондон и Нью-Йорк смещаются на час относительно Грузии в
-          периоды их летнего времени. Акции и форекс не торгуются по выходным; крипта — 24/7.
+          Сессии привязаны к местному времени бирж (Токио, Лондон, Нью-Йорк) и сами учитывают переход
+          на летнее время. Акции и форекс не торгуются по выходным; крипта — 24/7.
         </Note>
       </Section>
     </Page>
