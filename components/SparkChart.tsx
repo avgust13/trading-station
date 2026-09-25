@@ -4,6 +4,8 @@ import {
   AreaSeries,
   createChart,
   type IChartApi,
+  type IPrimitivePaneRenderer,
+  type IPrimitivePaneView,
   type ISeriesPrimitive,
   LineStyle,
   type SeriesAttachedParameter,
@@ -19,18 +21,26 @@ import type { SparkPoint } from "@/lib/types";
 const DAY = 86_400;
 /** Narrowest window Ctrl+wheel can zoom into, in bars. */
 const MIN_BARS = 10;
+/** Chart background; the hover legend reuses it to mask the quarter labels beneath. */
+const BG = "#111827";
+/** Q1–Q4 label offset from the pane top, and from its divider / the pane edge, px. */
+const LABEL_TOP = 4;
+const LABEL_PAD = 4;
 
-interface BitmapScope {
-  context: CanvasRenderingContext2D;
-  bitmapSize: { width: number; height: number };
-  horizontalPixelRatio: number;
-}
+type PeriodKind = "quarter" | "month" | "week";
 
 interface Divider {
   /** Last bar of the previous period and first bar of the new one. */
   prev: number;
   next: number;
-  kind: "month" | "week";
+  kind: PeriodKind;
+}
+
+interface DividerStyle {
+  lines: Record<PeriodKind, string>;
+  /** Canvas font shorthand and color of the Q1–Q4 labels. */
+  labelFont: string;
+  labelColor: string;
 }
 
 /** Monday-based week index (1970-01-01 was a Thursday). */
@@ -38,7 +48,17 @@ function weekOf(t: number): number {
   return Math.floor((Math.floor(t / DAY) + 3) / 7);
 }
 
-/** Every month / week boundary between consecutive bars (month wins when both change). */
+/** Calendar quarter index, unique across years. */
+function quarterOf(d: Date): number {
+  return d.getUTCFullYear() * 4 + Math.floor(d.getUTCMonth() / 3);
+}
+
+/** "Q1".."Q4" for the quarter a unix time falls in. */
+function quarterLabel(t: number): string {
+  return `Q${Math.floor(new Date(t * 1000).getUTCMonth() / 3) + 1}`;
+}
+
+/** Every quarter / month / week boundary between consecutive bars (the longest period wins). */
 function findDividers(points: SparkPoint[]): Divider[] {
   const out: Divider[] = [];
   for (let i = 1; i < points.length; i++) {
@@ -46,7 +66,9 @@ function findDividers(points: SparkPoint[]): Divider[] {
     const b = points[i].time;
     const da = new Date(a * 1000);
     const db = new Date(b * 1000);
-    if (da.getUTCMonth() !== db.getUTCMonth() || da.getUTCFullYear() !== db.getUTCFullYear()) {
+    if (quarterOf(da) !== quarterOf(db)) {
+      out.push({ prev: a, next: b, kind: "quarter" });
+    } else if (da.getUTCMonth() !== db.getUTCMonth()) {
       out.push({ prev: a, next: b, kind: "month" });
     } else if (weekOf(a) !== weekOf(b)) {
       out.push({ prev: a, next: b, kind: "week" });
@@ -56,17 +78,23 @@ function findDividers(points: SparkPoint[]): Divider[] {
 }
 
 /**
- * Hairline vertical dividers behind the area: one color for month starts, a
- * fainter one for week starts. Each line sits halfway between the last bar of
- * the old period and the first bar of the new one.
+ * Hairline vertical dividers behind the area — brightest for quarter starts,
+ * dimmer for month starts, faintest for week starts — plus a Q1–Q4 label at the
+ * top of each quarter. Each line sits halfway between the last bar of the old
+ * period and the first bar of the new one. When zoomed in, a quarter whose start
+ * has scrolled off keeps its label pinned to the left edge; a label that no
+ * longer fits its quarter's visible width is dropped.
  */
-class PeriodDividersPrimitive {
+class PeriodDividersPrimitive implements ISeriesPrimitive<Time> {
   private chart: IChartApi | null = null;
+  private readonly dividers: Divider[];
 
   constructor(
-    private readonly dividers: Divider[],
-    private readonly colors: { month: string; week: string },
-  ) {}
+    private readonly points: SparkPoint[],
+    private readonly style: DividerStyle,
+  ) {
+    this.dividers = findDividers(points);
+  }
 
   attached(p: SeriesAttachedParameter<Time>) {
     this.chart = p.chart as IChartApi;
@@ -76,31 +104,57 @@ class PeriodDividersPrimitive {
   }
   updateAllViews() {}
 
-  paneViews() {
+  paneViews(): IPrimitivePaneView[] {
     const chart = this.chart;
     if (!chart) return [];
     const ts = chart.timeScale();
-    const lines: { x: number; color: string }[] = [];
-    for (const d of this.dividers) {
-      const x1 = ts.timeToCoordinate(d.prev as UTCTimestamp);
-      const x2 = ts.timeToCoordinate(d.next as UTCTimestamp);
-      if (x1 == null || x2 == null) continue;
-      lines.push({ x: (x1 + x2) / 2, color: d.kind === "month" ? this.colors.month : this.colors.week });
-    }
+    const xOf = (t: number) => ts.timeToCoordinate(t as UTCTimestamp);
+    const first = this.points[0].time;
+    const last = this.points[this.points.length - 1].time;
 
-    const renderer = {
-      draw: (target: { useBitmapCoordinateSpace(cb: (s: BitmapScope) => void): void }) => {
-        target.useBitmapCoordinateSpace((scope) => {
-          const ctx = scope.context;
-          const w = Math.max(1, Math.floor(scope.horizontalPixelRatio));
+    const lines: { x: number; color: string }[] = [];
+    // Quarter spans in pane px; the first and last are usually partial quarters.
+    const quarters: { from: number; to: number; label: string }[] = [];
+    let from: number = xOf(first) ?? -Infinity;
+    let label = quarterLabel(first);
+    for (const d of this.dividers) {
+      const x1 = xOf(d.prev);
+      const x2 = xOf(d.next);
+      if (x1 == null || x2 == null) continue;
+      const x = (x1 + x2) / 2;
+      lines.push({ x, color: this.style.lines[d.kind] });
+      if (d.kind === "quarter") {
+        quarters.push({ from, to: x, label });
+        from = x;
+        label = quarterLabel(d.next);
+      }
+    }
+    quarters.push({ from, to: xOf(last) ?? Infinity, label });
+
+    const { labelFont, labelColor } = this.style;
+    const renderer: IPrimitivePaneRenderer = {
+      draw: (target) => {
+        target.useBitmapCoordinateSpace(({ context: ctx, bitmapSize, horizontalPixelRatio: hpr }) => {
+          const w = Math.max(1, Math.floor(hpr));
           for (const l of lines) {
             ctx.fillStyle = l.color;
-            ctx.fillRect(Math.round(l.x * scope.horizontalPixelRatio), 0, w, scope.bitmapSize.height);
+            ctx.fillRect(Math.round(l.x * hpr), 0, w, bitmapSize.height);
+          }
+        });
+        target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
+          ctx.font = labelFont;
+          ctx.fillStyle = labelColor;
+          ctx.textBaseline = "top";
+          for (const q of quarters) {
+            const x = Math.max(q.from, 0) + LABEL_PAD;
+            const room = Math.min(q.to, mediaSize.width) - LABEL_PAD - x;
+            if (ctx.measureText(q.label).width > room) continue;
+            ctx.fillText(q.label, x, LABEL_TOP);
           }
         });
       },
     };
-    return [{ zOrder: () => "bottom" as const, renderer: () => renderer }];
+    return [{ zOrder: () => "bottom", renderer: () => renderer }];
   }
 }
 
@@ -110,7 +164,7 @@ const Box = styled.div`
   height: 110px;
   border-radius: 8px;
   overflow: hidden;
-  background: #111827;
+  background: ${BG};
 `;
 
 const ChartHost = styled.div`
@@ -118,40 +172,14 @@ const ChartHost = styled.div`
   inset: 0;
 `;
 
-const ResetButton = styled.button`
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  z-index: 2;
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: none;
-  border-radius: ${({ theme }) => theme.radius.pill};
-  cursor: pointer;
-  color: ${({ theme }) => theme.colors.accent};
-  background: ${({ theme }) => `${theme.colors.accent}33`};
-  transition: background 120ms ease;
-
-  &:hover {
-    background: ${({ theme }) => `${theme.colors.accent}4d`};
-  }
-
-  svg {
-    width: 13px;
-    height: 13px;
-  }
-`;
-
 const Legend = styled.div`
   position: absolute;
-  top: 5px;
-  left: 8px;
+  top: 3px;
+  left: 4px;
   z-index: 2;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: ${BG};
   pointer-events: none;
   color: ${({ theme }) => theme.colors.muted};
   font-family: ${({ theme }) => theme.fonts.mono};
@@ -168,18 +196,17 @@ function fmtDate(t: number): string {
 }
 
 /**
- * 12-month area mini-chart with month / week divider lines.
+ * 12-month area mini-chart with quarter / month / week divider lines and Q1–Q4
+ * labels.
  *
  * Zoom is Ctrl/⌘ + wheel (also trackpad pinch, which browsers report as
  * ctrl+wheel) so plain wheel keeps scrolling the page past the table. Drag
- * pans, double-click or the corner button resets to the full year.
+ * pans, double-click resets to the full year.
  */
 export function SparkChart({ points }: { points: SparkPoint[] }) {
   const theme = useTheme();
   const hostRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
   const [hover, setHover] = useState<{ time: number; value: number } | null>(null);
-  const [zoomed, setZoomed] = useState(false);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -220,14 +247,20 @@ export function SparkChart({ points }: { points: SparkPoint[] }) {
       lastValueVisible: false,
       crosshairMarkerRadius: 3,
     });
-    series.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.04 } });
+    // The top margin keeps the line clear of the Q1–Q4 label strip.
+    series.priceScale().applyOptions({ scaleMargins: { top: 0.2, bottom: 0.04 } });
     series.setData(points.map((p) => ({ time: p.time as UTCTimestamp, value: p.close })));
 
     series.attachPrimitive(
-      new PeriodDividersPrimitive(findDividers(points), {
-        month: `${theme.colors.muted}59`,
-        week: `${theme.colors.accent}1f`,
-      }) as unknown as ISeriesPrimitive<Time>,
+      new PeriodDividersPrimitive(points, {
+        lines: {
+          quarter: `${theme.colors.muted}b3`,
+          month: `${theme.colors.muted}59`,
+          week: `${theme.colors.accent}1f`,
+        },
+        labelFont: `600 10px ${theme.fonts.sans}`,
+        labelColor: theme.colors.muted,
+      }),
     );
 
     chart.subscribeCrosshairMove((param) => {
@@ -264,43 +297,17 @@ export function SparkChart({ points }: { points: SparkPoint[] }) {
     host.addEventListener("wheel", onWheel, { passive: false });
     host.addEventListener("dblclick", onDblClick);
 
-    ts.subscribeVisibleLogicalRangeChange((r) => setZoomed(!!r && r.to - r.from < last - 1));
-
     ts.fitContent();
-    chartRef.current = chart;
 
     return () => {
       host.removeEventListener("wheel", onWheel);
       host.removeEventListener("dblclick", onDblClick);
-      chartRef.current = null;
-      setZoomed(false);
       chart.remove();
     };
   }, [points, theme]);
 
   return (
     <Box>
-      {zoomed && (
-        <ResetButton
-          type="button"
-          title="Сбросить масштаб"
-          aria-label="Сбросить масштаб"
-          onClick={() => chartRef.current?.timeScale().fitContent()}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M3 12a9 9 0 1 0 3-6.7" />
-            <path d="M3 4v5h5" />
-          </svg>
-        </ResetButton>
-      )}
       {hover && (
         <Legend>
           {fmtDate(hover.time)} · {fmtPrice(hover.value)}

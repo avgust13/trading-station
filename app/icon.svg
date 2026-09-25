@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#151d2e"/>
+      <stop offset="1" stop-color="#0b0f17"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+  <!-- Three rising candles (hammer, pullback, breakout). Every coordinate is even,
+       so edges land on whole pixels at 16px and 32px and the tab icon stays crisp. -->
+  <g fill="#22c55e">
+    <rect x="6" y="14" width="2" height="14" rx="1"/>
+    <rect x="4" y="16" width="6" height="8" rx="1"/>
+    <rect x="22" y="4" width="2" height="16" rx="1"/>
+    <rect x="20" y="6" width="6" height="10" rx="1"/>
+  </g>
+  <g fill="#ef4444">
+    <rect x="14" y="8" width="2" height="14" rx="1"/>
+    <rect x="12" y="12" width="6" height="6" rx="1"/>
+  </g>
+</svg>
