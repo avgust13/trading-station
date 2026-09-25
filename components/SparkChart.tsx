@@ -17,6 +17,8 @@ import { fmtPrice } from "@/lib/format";
 import type { SparkPoint } from "@/lib/types";
 
 const DAY = 86_400;
+/** Narrowest window Ctrl+wheel can zoom into, in bars. */
+const MIN_BARS = 10;
 
 interface BitmapScope {
   context: CanvasRenderingContext2D;
@@ -116,6 +118,35 @@ const ChartHost = styled.div`
   inset: 0;
 `;
 
+const ResetButton = styled.button`
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  cursor: pointer;
+  color: ${({ theme }) => theme.colors.accent};
+  background: ${({ theme }) => `${theme.colors.accent}33`};
+  transition: background 120ms ease;
+
+  &:hover {
+    background: ${({ theme }) => `${theme.colors.accent}4d`};
+  }
+
+  svg {
+    width: 13px;
+    height: 13px;
+  }
+`;
+
 const Legend = styled.div`
   position: absolute;
   top: 5px;
@@ -136,16 +167,25 @@ function fmtDate(t: number): string {
   });
 }
 
-/** 12-month area mini-chart with month / week divider lines. */
+/**
+ * 12-month area mini-chart with month / week divider lines.
+ *
+ * Zoom is Ctrl/⌘ + wheel (also trackpad pinch, which browsers report as
+ * ctrl+wheel) so plain wheel keeps scrolling the page past the table. Drag
+ * pans, double-click or the corner button resets to the full year.
+ */
 export function SparkChart({ points }: { points: SparkPoint[] }) {
   const theme = useTheme();
   const hostRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
   const [hover, setHover] = useState<{ time: number; value: number } | null>(null);
+  const [zoomed, setZoomed] = useState(false);
 
   useEffect(() => {
-    if (!hostRef.current || points.length < 2) return;
+    const host = hostRef.current;
+    if (!host || points.length < 2) return;
 
-    const chart = createChart(hostRef.current, {
+    const chart = createChart(host, {
       autoSize: true,
       layout: {
         background: { color: "transparent" },
@@ -158,8 +198,8 @@ export function SparkChart({ points }: { points: SparkPoint[] }) {
       rightPriceScale: { visible: false },
       leftPriceScale: { visible: false },
       timeScale: { borderVisible: false, fixLeftEdge: true, fixRightEdge: true },
-      handleScroll: false,
-      handleScale: false,
+      handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: false, axisDoubleClickReset: false },
       crosshair: {
         horzLine: { visible: false, labelVisible: false },
         vertLine: {
@@ -199,13 +239,68 @@ export function SparkChart({ points }: { points: SparkPoint[] }) {
       }
     });
 
-    chart.timeScale().fitContent();
+    const ts = chart.timeScale();
+    const last = points.length - 1;
 
-    return () => chart.remove();
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const range = ts.getVisibleLogicalRange();
+      if (!range) return;
+      const lines = e.deltaMode === WheelEvent.DOM_DELTA_LINE ? 33 : 1;
+      const factor = Math.exp(e.deltaY * lines * 0.002);
+      const anchor =
+        ts.coordinateToLogical(e.clientX - host.getBoundingClientRect().left) ?? (range.from + range.to) / 2;
+      let from = anchor - (anchor - range.from) * factor;
+      let to = anchor + (range.to - anchor) * factor;
+      if (to - from < MIN_BARS) {
+        const k = MIN_BARS / (to - from);
+        from = anchor - (anchor - from) * k;
+        to = anchor + (to - anchor) * k;
+      }
+      ts.setVisibleLogicalRange({ from: Math.max(0, from), to: Math.min(last, to) });
+    };
+    const onDblClick = () => ts.fitContent();
+    host.addEventListener("wheel", onWheel, { passive: false });
+    host.addEventListener("dblclick", onDblClick);
+
+    ts.subscribeVisibleLogicalRangeChange((r) => setZoomed(!!r && r.to - r.from < last - 1));
+
+    ts.fitContent();
+    chartRef.current = chart;
+
+    return () => {
+      host.removeEventListener("wheel", onWheel);
+      host.removeEventListener("dblclick", onDblClick);
+      chartRef.current = null;
+      setZoomed(false);
+      chart.remove();
+    };
   }, [points, theme]);
 
   return (
     <Box>
+      {zoomed && (
+        <ResetButton
+          type="button"
+          title="Сбросить масштаб"
+          aria-label="Сбросить масштаб"
+          onClick={() => chartRef.current?.timeScale().fitContent()}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 12a9 9 0 1 0 3-6.7" />
+            <path d="M3 4v5h5" />
+          </svg>
+        </ResetButton>
+      )}
       {hover && (
         <Legend>
           {fmtDate(hover.time)} · {fmtPrice(hover.value)}
