@@ -8,6 +8,26 @@ import { canOpenTrade, computeRiskState, getRiskSettings, type RiskStatus } from
 import { fetchBlotterState } from "@/lib/blotter/storage";
 import type { BlotterState, CandleInterval } from "@/lib/blotter/types";
 import { TICKERS } from "@/lib/tickers";
+import {
+  Affix,
+  Button,
+  Chip,
+  Footnote,
+  Hint,
+  Input,
+  InputWrap,
+  Label,
+  Page,
+  PageHeader,
+  Panel,
+  SectionTitle,
+  Segment,
+  Select,
+  StatLabel,
+  StatRow,
+  StatSub,
+  StatValue,
+} from "@/components/ui";
 import { RiskChart } from "./RiskChart";
 
 /* ----------------------------------------------------------------------------
@@ -88,29 +108,6 @@ const RISK_RULES = [
  * Styles
  * -------------------------------------------------------------------------- */
 
-const Page = styled.div`
-  max-width: ${({ theme }) => theme.layout.wide};
-  margin: 0 auto;
-  padding: 24px ${({ theme }) => theme.layout.gutter} 64px;
-`;
-
-const Header = styled.div`
-  margin-bottom: 18px;
-`;
-
-const Title = styled.h1`
-  margin: 0;
-  color: ${({ theme }) => theme.colors.fg};
-  font-size: 22px;
-  font-weight: 700;
-`;
-
-const Subtitle = styled.div`
-  margin-top: 4px;
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 13px;
-`;
-
 // Responsive app layout. Areas reflow across three bands:
 //  • <721px      — single column (trade, result, chart, limits, rules)
 //  • 721–1023px  — trade|result side by side, chart full-width below
@@ -158,22 +155,6 @@ const ChartArea = styled.div`
   }
 `;
 
-const Panel = styled.div`
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: 12px;
-  padding: 16px;
-  background: ${({ theme }) => theme.colors.zebra};
-`;
-
-const PanelTitle = styled.div`
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 14px;
-`;
-
 const SegRow = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -181,65 +162,8 @@ const SegRow = styled.div`
   margin-bottom: 16px;
 `;
 
-const SegBtn = styled.button<{ $active: boolean; $tone: "green" | "red" }>`
-  appearance: none;
-  cursor: pointer;
-  padding: 9px 0;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  border: 1px solid
-    ${({ theme, $active, $tone }) =>
-      $active ? theme.colors[$tone] : theme.colors.border};
-  background: ${({ theme, $active, $tone }) =>
-    $active ? `${theme.colors[$tone]}22` : "transparent"};
-  color: ${({ theme, $active, $tone }) => ($active ? theme.colors[$tone] : theme.colors.muted)};
-  transition:
-    background 120ms ease,
-    color 120ms ease,
-    border-color 120ms ease;
-`;
-
 const FieldWrap = styled.div`
   margin-bottom: 14px;
-`;
-
-const Label = styled.label`
-  display: block;
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 12px;
-  margin-bottom: 6px;
-`;
-
-const InputWrap = styled.div`
-  display: flex;
-  align-items: center;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: 8px;
-  background: ${({ theme }) => theme.colors.bg};
-  overflow: hidden;
-
-  &:focus-within {
-    border-color: ${({ theme }) => theme.colors.accent};
-  }
-`;
-
-const Affix = styled.span<{ $right?: boolean }>`
-  padding: ${({ $right }) => ($right ? "0 12px 0 8px" : "0 8px 0 12px")};
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 14px;
-`;
-
-const Input = styled.input`
-  flex: 1;
-  width: 100%;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: ${({ theme }) => theme.colors.fg};
-  font-family: ${({ theme }) => theme.fonts.mono};
-  font-size: 15px;
-  padding: 10px 12px;
 `;
 
 const Chips = styled.div`
@@ -248,30 +172,17 @@ const Chips = styled.div`
   margin-top: 8px;
 `;
 
-const Chip = styled.button<{ $active: boolean }>`
-  appearance: none;
-  cursor: pointer;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1px solid
-    ${({ theme, $active }) => ($active ? theme.colors.accent : theme.colors.border)};
-  background: ${({ theme, $active }) => ($active ? `${theme.colors.accent}1f` : "transparent")};
-  color: ${({ theme, $active }) => ($active ? theme.colors.fg : theme.colors.muted)};
-`;
-
 const Hero = styled.div`
   padding: 14px;
-  border-radius: 10px;
-  background: rgba(96, 165, 250, 0.1);
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => `${theme.colors.accent}1a`};
   border: 1px solid ${({ theme }) => `${theme.colors.accent}55`};
   margin-bottom: 14px;
 `;
 
 const HeroLabel = styled.div`
   color: ${({ theme }) => theme.colors.muted};
-  font-size: 12px;
+  font-size: ${({ theme }) => theme.fontSize.sm};
 `;
 
 const HeroValue = styled.div`
@@ -286,54 +197,18 @@ const HeroValue = styled.div`
 const HeroSub = styled.div`
   color: ${({ theme }) => theme.colors.price};
   font-family: ${({ theme }) => theme.fonts.mono};
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.fontSize.base};
   margin-top: 4px;
-`;
-
-const StatRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  padding: 9px 0;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-`;
-
-const StatLabel = styled.div`
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 13px;
-`;
-
-const StatValue = styled.div<{ $tone?: Tone }>`
-  font-family: ${({ theme }) => theme.fonts.mono};
-  font-size: 14px;
-  font-weight: 600;
-  text-align: right;
-  color: ${({ theme, $tone }) =>
-    $tone === "green"
-      ? theme.colors.green
-      : $tone === "red"
-        ? theme.colors.red
-        : $tone === "accent"
-          ? theme.colors.accent
-          : theme.colors.fg};
-`;
-
-const StatSub = styled.span`
-  color: ${({ theme }) => theme.colors.muted};
-  font-weight: 400;
-  font-size: 12px;
-  margin-left: 6px;
 `;
 
 const Warn = styled.div`
   margin-top: 12px;
   padding: 8px 11px;
-  border-radius: 8px;
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.5);
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => `${theme.colors.warning}1f`};
+  border: 1px solid ${({ theme }) => `${theme.colors.warning}80`};
   color: ${({ theme }) => theme.colors.fg};
-  font-size: 12.5px;
+  font-size: ${({ theme }) => theme.fontSize.sm};
   line-height: 1.45;
 `;
 
@@ -341,15 +216,6 @@ const Section = styled.div`
   margin-top: 24px;
   border-top: 1px solid ${({ theme }) => theme.colors.border};
   padding-top: 16px;
-`;
-
-const SectionTitle = styled.div`
-  color: ${({ theme }) => theme.colors.fg};
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 10px;
 `;
 
 const TipList = styled.ul`
@@ -360,38 +226,16 @@ const TipList = styled.ul`
 
 const TipLi = styled.li`
   color: ${({ theme }) => theme.colors.fg};
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.fontSize.base};
   line-height: 1.6;
   margin: 3px 0;
 `;
 
-const Footnote = styled.div`
-  margin-top: 14px;
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 12px;
-  line-height: 1.5;
-`;
-
-const GateSelect = styled.select`
-  width: 100%;
-  padding: 9px 10px;
-  border-radius: 8px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.bg};
-  color: ${({ theme }) => theme.colors.fg};
-  font-size: 14px;
-
-  &:focus {
-    outline: none;
-    border-color: ${({ theme }) => theme.colors.accent};
-  }
-`;
-
 const GateBanner = styled.div<{ $tone: "green" | "red" | "muted" }>`
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: ${({ theme }) => theme.radius.sm};
   margin-bottom: 12px;
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.fontSize.base};
   font-weight: 600;
   line-height: 1.45;
   color: ${({ theme }) => theme.colors.fg};
@@ -408,29 +252,6 @@ const GateBanner = styled.div<{ $tone: "green" | "red" | "muted" }>`
       : $tone === "red"
         ? `${theme.colors.red}14`
         : "transparent"};
-`;
-
-const Hint = styled.div`
-  margin-top: 6px;
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 11.5px;
-  line-height: 1.4;
-`;
-
-const LimitChip = styled.button`
-  appearance: none;
-  cursor: pointer;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1px solid ${({ theme }) => `${theme.colors.accent}88`};
-  background: ${({ theme }) => `${theme.colors.accent}1f`};
-  color: ${({ theme }) => theme.colors.accent};
-
-  &:hover {
-    background: ${({ theme }) => `${theme.colors.accent}33`};
-  }
 `;
 
 const ChartTop = styled.div`
@@ -452,52 +273,18 @@ const IntervalChips = styled.div`
   flex-wrap: wrap;
 `;
 
-const LoadBtn = styled.button`
-  appearance: none;
-  cursor: pointer;
-  padding: 10px 14px;
-  border-radius: 8px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: transparent;
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-
-  &:hover {
-    color: ${({ theme }) => theme.colors.fg};
-    border-color: ${({ theme }) => `${theme.colors.accent}88`};
-  }
-`;
-
 const PriceRow = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
   margin-bottom: 12px;
   color: ${({ theme }) => theme.colors.muted};
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.fontSize.base};
 `;
 
 const PriceVal = styled.b`
   color: ${({ theme }) => theme.colors.price};
   font-family: ${({ theme }) => theme.fonts.mono};
-`;
-
-const PriceBtn = styled.button`
-  appearance: none;
-  cursor: pointer;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1px solid ${({ theme }) => `${theme.colors.accent}88`};
-  background: ${({ theme }) => `${theme.colors.accent}1f`};
-  color: ${({ theme }) => theme.colors.accent};
-
-  &:hover {
-    background: ${({ theme }) => `${theme.colors.accent}33`};
-  }
 `;
 
 /* ----------------------------------------------------------------------------
@@ -689,35 +476,35 @@ export function RiskCalculator() {
 
   return (
     <Page>
-      <Header>
-        <Title>Risk Calculator</Title>
-        <Subtitle>Position sizing from your account risk and stop-loss</Subtitle>
-      </Header>
+      <PageHeader
+        title="Risk Calculator"
+        subtitle="Position sizing from your account risk and stop-loss"
+      />
 
       <Layout>
         <Panel style={{ gridArea: "trade" }}>
-          <PanelTitle>Trade</PanelTitle>
+          <SectionTitle>Trade</SectionTitle>
 
           <SegRow>
-            <SegBtn $active={dir === "long"} $tone="green" type="button" onClick={() => setDir("long")}>
+            <Segment $active={dir === "long"} $tone="green" type="button" onClick={() => setDir("long")}>
               Long
-            </SegBtn>
-            <SegBtn $active={dir === "short"} $tone="red" type="button" onClick={() => setDir("short")}>
+            </Segment>
+            <Segment $active={dir === "short"} $tone="red" type="button" onClick={() => setDir("short")}>
               Short
-            </SegBtn>
+            </Segment>
           </SegRow>
 
           {blotterState && blotterState.exchanges.length > 0 && (
             <FieldWrap>
               <Label>Биржа (журнал)</Label>
-              <GateSelect value={selExId} onChange={(ev) => pickExchange(ev.target.value)}>
+              <Select value={selExId} onChange={(ev) => pickExchange(ev.target.value)}>
                 <option value="">Вручную</option>
                 {blotterState.exchanges.map((ex) => (
                   <option key={ex.id} value={ex.id}>
                     {ex.name}
                   </option>
                 ))}
-              </GateSelect>
+              </Select>
             </FieldWrap>
           )}
 
@@ -747,13 +534,14 @@ export function RiskCalculator() {
                 </Chip>
               ))}
               {riskState && riskState.allowedRiskPerTrade > 0 && bal > 0 && (
-                <LimitChip
+                <Chip
+                  $active
                   type="button"
                   title="Подставить допустимый риск из лимитов"
                   onClick={() => changeRisk(((riskState.allowedRiskPerTrade / bal) * 100).toFixed(2))}
                 >
                   Лимит {money(riskState.allowedRiskPerTrade)}
-                </LimitChip>
+                </Chip>
               )}
             </Chips>
           </FieldWrap>
@@ -781,7 +569,7 @@ export function RiskCalculator() {
         </Panel>
 
         <Panel style={{ gridArea: "result" }}>
-          <PanelTitle>Result</PanelTitle>
+          <SectionTitle>Result</SectionTitle>
 
           <Hero>
             <HeroLabel>Position size</HeroLabel>
@@ -846,7 +634,7 @@ export function RiskCalculator() {
         </Panel>
 
         <ChartArea>
-          <SectionTitle>График</SectionTitle>
+          <SectionTitle $strong>График</SectionTitle>
         <ChartTop>
           <TickerCol>
             <Label>Тикер</Label>
@@ -874,9 +662,9 @@ export function RiskCalculator() {
               </Chip>
             ))}
           </IntervalChips>
-          <LoadBtn type="button" onClick={loadNow}>
+          <Button $variant="secondary" type="button" onClick={loadNow}>
             Обновить
-          </LoadBtn>
+          </Button>
         </ChartTop>
 
         {lastPrice !== null && (
@@ -884,9 +672,9 @@ export function RiskCalculator() {
             <span>
               Текущая цена: <PriceVal>{money(lastPrice)}</PriceVal>
             </span>
-            <PriceBtn type="button" onClick={() => setEntry(String(lastPrice))}>
+            <Chip $active type="button" onClick={() => setEntry(String(lastPrice))}>
               → во вход
-            </PriceBtn>
+            </Chip>
           </PriceRow>
         )}
 
@@ -902,7 +690,7 @@ export function RiskCalculator() {
 
         {blotterState && blotterState.exchanges.length > 0 && (
           <Section style={{ gridArea: "limits" }}>
-            <SectionTitle>Проверка риск-лимитов</SectionTitle>
+            <SectionTitle $strong>Проверка риск-лимитов</SectionTitle>
 
           {!riskState && (
             <Hint>Выберите биржу в поле «Биржа (журнал)» сверху, чтобы проверить сделку по лимитам.</Hint>
@@ -948,7 +736,7 @@ export function RiskCalculator() {
       )}
 
         <Section style={{ gridArea: "rules" }}>
-          <SectionTitle>Правила риска</SectionTitle>
+          <SectionTitle $strong>Правила риска</SectionTitle>
         <TipList>
           {RISK_RULES.map((r) => (
             <TipLi key={r}>{r}</TipLi>

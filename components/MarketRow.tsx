@@ -6,8 +6,8 @@ import { cls, fmtChg, fmtPct, fmtPrice } from "@/lib/format";
 import { getRuDescription, getTvSymbol } from "@/lib/display";
 import type { MarketRow as Row } from "@/lib/types";
 import { ChangeCell } from "./ChangeCell";
-import { ChartFrame } from "./ChartFrame";
-import { TickerIcon } from "./TickerIcon";
+import { SparkChart } from "./SparkChart";
+import { TickerIcon, TickerTag } from "./TickerIcon";
 
 const TickerCell = styled.td`
   padding: 14px 12px;
@@ -89,6 +89,7 @@ export function MarketRow({ row }: { row: Row }) {
           >
             {row.symbol}
           </TickerLink>
+          <TickerTag symbol={row.symbol} />
         </TickerHead>
         <RuDesc>{getRuDescription(row)}</RuDesc>
       </TickerCell>
@@ -102,7 +103,7 @@ export function MarketRow({ row }: { row: Row }) {
       <ChangeCell $tone={cls(row.mtd_pct)}>{fmtPct(row.mtd_pct)}</ChangeCell>
       <ChangeCell $tone={cls(row.ytd_pct)}>{fmtPct(row.ytd_pct)}</ChangeCell>
       <ChartCell>
-        <ChartFrame row={row} />
+        <SparkChart points={row.spark ?? []} />
       </ChartCell>
     </tr>
   );

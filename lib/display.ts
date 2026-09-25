@@ -8,6 +8,7 @@ export const RU_DESC: Record<string, string> = {
   QQQ: 'ETF на Nasdaq-100 — 100 крупнейших нефинансовых компаний биржи Nasdaq, доминируют технологии (AAPL, MSFT, NVDA). Ростовой и более волатильный аналог SPY; чувствителен к ставкам и ИИ-теме.',
   IWM: 'ETF на Russell 2000 — индекс из ~2000 малых компаний США. Классический индикатор риск-аппетита и здоровья внутренней экономики: при оптимизме обгоняет крупные капиталы.',
   SMH: 'ETF на крупнейшие полупроводниковые компании (NVIDIA, TSMC, ASML, AMD и др.). Главный барометр ИИ-цикла и глобального капекса в технологии; высокая бета к рынку.',
+  IGV: 'ETF на софтверный сектор Северной Америки (MSFT, ORCL, CRM, PLTR, ADBE, NOW и др.). Главный бенчмарк для софта: SaaS, облака, кибербезопасность; показывает, как ИИ-тема отражается на программных компаниях.',
   XBI: 'Равновзвешенный ETF на биотех S&P. Малый и средний биотех — высоковолатильный сегмент, отражает риск-аппетит в здравоохранении и спекулятивный спрос.',
   DIA: 'ETF на Dow Jones Industrial Average — 30 крупнейших промышленных и финансовых "голубых фишек" США. Более защитный и медленный срез рынка, чем SPY.',
   XLF: 'ETF на финансовый сектор S&P 500 — банки, страховщики, биржи, управляющие компании. Чувствителен к кривой доходностей и кредитному циклу.',
@@ -24,6 +25,7 @@ export const TV_SYMBOL: Record<string, string> = {
   QQQ: "NASDAQ:QQQ",
   IWM: "AMEX:IWM",
   SMH: "NASDAQ:SMH",
+  IGV: "CBOE:IGV",
   XBI: "AMEX:XBI",
   DIA: "AMEX:DIA",
   XLF: "AMEX:XLF",
@@ -41,27 +43,4 @@ export function getRuDescription(row: MarketRow): string {
 
 export function getTvSymbol(row: MarketRow): string {
   return TV_SYMBOL[row.symbol] ?? row.symbol;
-}
-
-/** Build the TradingView mini-symbol-overview embed URL for a row. */
-export function tradingViewSrc(row: MarketRow): string {
-  const config = {
-    symbol: getTvSymbol(row),
-    width: "100%",
-    height: "100%",
-    locale: "en",
-    dateRange: "12M",
-    colorTheme: "dark",
-    isTransparent: true,
-    autosize: true,
-    largeChartUrl: "",
-    noTimeScale: false,
-    chartOnly: true,
-    trendLineColor: "rgba(96, 165, 250, 1)",
-    underLineColor: "rgba(96, 165, 250, 0.3)",
-    underLineBottomColor: "rgba(96, 165, 250, 0)",
-  };
-  return `https://s.tradingview.com/embed-widget/mini-symbol-overview/?locale=en#${encodeURIComponent(
-    JSON.stringify(config),
-  )}`;
 }

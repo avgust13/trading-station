@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import styled, { keyframes } from "styled-components";
 
+import { Badge, Card, Page, PageHeader, SectionTitle } from "@/components/ui";
+
 /* ----------------------------------------------------------------------------
  * Session data — all times in Georgia time (GET = UTC+4, no daylight saving).
  * Russian notes/hints are from the user's trading brief.
@@ -187,34 +189,6 @@ const pulse = keyframes`
   50% { opacity: 0.35; }
 `;
 
-const Page = styled.div`
-  max-width: ${({ theme }) => theme.layout.content};
-  margin: 0 auto;
-  padding: 24px ${({ theme }) => theme.layout.gutter} 64px;
-`;
-
-const Header = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-`;
-
-const Title = styled.h1`
-  margin: 0;
-  color: ${({ theme }) => theme.colors.fg};
-  font-size: 22px;
-  font-weight: 700;
-`;
-
-const Subtitle = styled.div`
-  margin-top: 4px;
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 13px;
-`;
-
 const Clock = styled.div`
   text-align: right;
 `;
@@ -239,34 +213,6 @@ const StatusRow = styled.div`
   gap: 8px;
   min-height: 30px;
   margin-bottom: 16px;
-`;
-
-const Pill = styled.span<{ $bg: string }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 11px;
-  border-radius: 999px;
-  background: ${({ $bg }) => `${$bg}1f`};
-  border: 1px solid ${({ $bg }) => `${$bg}66`};
-  color: ${({ theme }) => theme.colors.fg};
-  font-size: 12px;
-  font-weight: 600;
-`;
-
-const PillMuted = styled.span`
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 11px;
-  border-radius: 999px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 12px;
-  font-weight: 600;
-`;
-
-const PillGhost = styled(PillMuted)`
-  margin-left: auto;
 `;
 
 const PlotScroll = styled.div`
@@ -432,15 +378,6 @@ const Cards = styled.div`
   margin-top: 20px;
 `;
 
-const Card = styled.div<{ $c: string; $active: boolean }>`
-  border: 1px solid ${({ theme, $active, $c }) => ($active ? $c : theme.colors.border)};
-  border-left: 3px solid ${({ $c }) => $c};
-  border-radius: 10px;
-  padding: 12px 14px;
-  background: ${({ theme }) => theme.colors.zebra};
-  box-shadow: ${({ $active, $c }) => ($active ? `0 0 16px ${$c}33` : "none")};
-`;
-
 const CardHead = styled.div`
   display: flex;
   align-items: center;
@@ -513,16 +450,6 @@ const Look = styled.div`
 
 /* --- overlap callout --- */
 
-const Callout = styled.div<{ $c: string; $active: boolean }>`
-  margin-top: 14px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid ${({ $c, $active }) => ($active ? $c : `${$c}66`)};
-  border-left: 3px solid ${({ $c }) => $c};
-  background: ${({ $c }) => `${$c}14`};
-  box-shadow: ${({ $active, $c }) => ($active ? `0 0 16px ${$c}40` : "none")};
-`;
-
 const CalloutTitle = styled.div`
   color: ${({ theme }) => theme.colors.fg};
   font-size: 14px;
@@ -542,15 +469,6 @@ const Section = styled.div`
   margin-top: 24px;
   border-top: 1px solid ${({ theme }) => theme.colors.border};
   padding-top: 16px;
-`;
-
-const SectionTitle = styled.div`
-  color: ${({ theme }) => theme.colors.fg};
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 12px;
 `;
 
 /* --- playbook --- */
@@ -702,35 +620,39 @@ export function Sessions() {
 
   return (
     <Page>
-      <Header>
-        <div>
-          <Title>Market Sessions</Title>
-          <Subtitle>When the major markets are open — Georgia time (GET, UTC+4)</Subtitle>
-        </div>
-        <Clock>
-          <ClockTime>
-            {now
-              ? `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())}`
-              : "––:––:––"}
-          </ClockTime>
-          <ClockDate>
-            {now ? `${WEEKDAYS[now.getUTCDay()]}, ${MONTHS[now.getUTCMonth()]} ${now.getUTCDate()}` : " "}
-          </ClockDate>
-        </Clock>
-      </Header>
+      <PageHeader
+        title="Market Sessions"
+        subtitle="When the major markets are open — Georgia time (GET, UTC+4)"
+        actions={
+          <Clock>
+            <ClockTime>
+              {now
+                ? `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())}`
+                : "––:––:––"}
+            </ClockTime>
+            <ClockDate>
+              {now ? `${WEEKDAYS[now.getUTCDay()]}, ${MONTHS[now.getUTCMonth()]} ${now.getUTCDate()}` : " "}
+            </ClockDate>
+          </Clock>
+        }
+      />
 
       <StatusRow>
         {activeSessions.map((s) => (
-          <Pill key={s.key} $bg={s.color}>
+          <Badge key={s.key} color={s.color} size="md">
             ● {s.ru} — открыта
-          </Pill>
+          </Badge>
         ))}
-        {inOverlap && <Pill $bg={OVERLAP.color}>⚡ Overlap — пик волатильности</Pill>}
-        {now && activeSessions.length === 0 && <PillMuted>Тихо — между сессиями</PillMuted>}
+        {inOverlap && (
+          <Badge color={OVERLAP.color} size="md">
+            ⚡ Overlap — пик волатильности
+          </Badge>
+        )}
+        {now && activeSessions.length === 0 && <Badge size="md">Тихо — между сессиями</Badge>}
         {next && (
-          <PillGhost>
+          <Badge size="md" style={{ marginLeft: "auto" }}>
             Дальше: {next.name} через {fmtDur(next.inMin)}
-          </PillGhost>
+          </Badge>
         )}
       </StatusRow>
 
@@ -786,7 +708,7 @@ export function Sessions() {
         {SESSIONS.map((s) => {
           const active = h != null && isActive(s, h);
           return (
-            <Card key={s.key} $c={s.color} $active={active}>
+            <Card key={s.key} $accent={s.color} $active={active}>
               <CardHead>
                 <CardName>{s.ru}</CardName>
                 <CardEn>{s.name}</CardEn>
@@ -809,7 +731,7 @@ export function Sessions() {
         })}
       </Cards>
 
-      <Callout $c={OVERLAP.color} $active={inOverlap}>
+      <Card $accent={OVERLAP.color} $active={inOverlap} $tint style={{ marginTop: 14 }}>
         <CalloutTitle>
           ⚡ Лондон + Нью-Йорк (overlap) · 17:30–19:30{inOverlap ? " · идёт сейчас" : ""}
         </CalloutTitle>
@@ -818,10 +740,10 @@ export function Sessions() {
           EUR/USD, GBP/USD, XAU/USD, NASDAQ, S&amp;P 500; часто breakout или reversal. Один из лучших
           периодов для внутридневной торговли.
         </CalloutText>
-      </Callout>
+      </Card>
 
       <Section>
-        <SectionTitle>Как торговать</SectionTitle>
+        <SectionTitle $strong>Как торговать</SectionTitle>
         {PLAYBOOK.map((p) => (
           <Step key={p.num}>
             <StepNum $c={p.color}>{p.num}</StepNum>
@@ -840,7 +762,7 @@ export function Sessions() {
       </Section>
 
       <Section>
-        <SectionTitle>Лучшее время по активам</SectionTitle>
+        <SectionTitle $strong>Лучшее время по активам</SectionTitle>
         <Assets>
           {ASSETS.map((a) => (
             <AssetRow key={a.name}>
@@ -852,7 +774,7 @@ export function Sessions() {
       </Section>
 
       <Section>
-        <SectionTitle>Ключевые окна (по Грузии)</SectionTitle>
+        <SectionTitle $strong>Ключевые окна (по Грузии)</SectionTitle>
         {KEY_WINDOWS.map((w) => (
           <WindowItem key={w.time}>
             <WTime>{w.time}</WTime>

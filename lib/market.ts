@@ -3,7 +3,7 @@ import "server-only";
 import YahooFinance from "yahoo-finance2";
 
 import { TICKERS, type Ticker } from "./tickers";
-import type { MarketRow } from "./types";
+import type { MarketRow, SparkPoint } from "./types";
 
 // One shared client. The library queues/throttles requests internally, so the
 // parallel fetch below won't hammer Yahoo all at once.
@@ -93,6 +93,13 @@ async function fetchOne(t: Ticker): Promise<MarketRow | null> {
   const mtdBase = lastCloseBefore(closes, beforeMonth) ?? last;
   const ytdBase = lastCloseBefore(closes, beforeYear) ?? last;
 
+  // Last 12 months of closes for the row's mini-chart.
+  const sparkFrom = new Date(now);
+  sparkFrom.setFullYear(sparkFrom.getFullYear() - 1);
+  const spark: SparkPoint[] = closes
+    .filter((c) => c.date >= sparkFrom)
+    .map((c) => ({ time: Math.floor(c.date.getTime() / 1000), close: c.close }));
+
   return {
     symbol: t.display,
     name: t.name,
@@ -106,6 +113,7 @@ async function fetchOne(t: Ticker): Promise<MarketRow | null> {
     ytd_pct: pct(last, ytdBase),
     as_of: formatAsOf(closes[closes.length - 1].date),
     price_basis: live != null ? "live" : "close",
+    spark,
   };
 }
 

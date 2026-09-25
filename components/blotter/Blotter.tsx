@@ -20,6 +20,7 @@ import {
 } from "@/lib/blotter/storage";
 import type { BlotterState, Exchange, Fill, Trade } from "@/lib/blotter/types";
 import type { TzMode } from "@/lib/calendar/datetime";
+import { Button, Page, PageHeader } from "@/components/ui";
 import { EquityCurve } from "./EquityCurve";
 import { ExchangeManager } from "./ExchangeManager";
 import { ExchangesPanel } from "./ExchangesPanel";
@@ -32,88 +33,6 @@ import { TradesTable } from "./TradesTable";
 
 /** Display timezone for dates/times and the "today" P&L boundary. */
 const DISPLAY_TZ: TzMode = "local";
-
-const Page = styled.div`
-  max-width: ${({ theme }) => theme.layout.content};
-  margin: 0 auto;
-  padding: 24px ${({ theme }) => theme.layout.gutter} 64px;
-`;
-
-const Header = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 18px;
-`;
-
-const HeaderMain = styled.div`
-  flex: 1;
-`;
-
-const Title = styled.h1`
-  margin: 0;
-  color: ${({ theme }) => theme.colors.fg};
-  font-size: 22px;
-  font-weight: 700;
-`;
-
-const Subtitle = styled.div`
-  margin-top: 4px;
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 13px;
-`;
-
-const ImportBtn = styled.button`
-  appearance: none;
-  cursor: pointer;
-  padding: 9px 16px;
-  border-radius: 8px;
-  border: 1px solid ${({ theme }) => theme.colors.accent};
-  background: ${({ theme }) => `${theme.colors.accent}22`};
-  color: ${({ theme }) => theme.colors.accent};
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
-
-  &:hover {
-    background: ${({ theme }) => `${theme.colors.accent}33`};
-  }
-`;
-
-const SecondaryBtn = styled.button`
-  appearance: none;
-  cursor: pointer;
-  padding: 9px 12px;
-  border-radius: 8px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: transparent;
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-
-  &:hover {
-    color: ${({ theme }) => theme.colors.fg};
-  }
-`;
-
-const ClearBtn = styled.button`
-  appearance: none;
-  cursor: pointer;
-  padding: 9px 12px;
-  border-radius: 8px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: transparent;
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-
-  &:hover {
-    color: ${({ theme }) => theme.colors.red};
-    border-color: ${({ theme }) => `${theme.colors.red}55`};
-  }
-`;
 
 const ErrorStrip = styled.div`
   margin-bottom: 14px;
@@ -446,26 +365,25 @@ export function Blotter() {
 
   return (
     <Page>
-      <Header>
-        <HeaderMain>
-          <Title>Журнал сделок</Title>
-          <Subtitle>
-            Вставьте скриншот или текст ордеров из брокера — AI распознает исполнения и соберёт
-            их в сделки.
-          </Subtitle>
-        </HeaderMain>
-        {state && state.fills.length > 0 && (
-          <ClearBtn type="button" onClick={clearAll}>
-            Очистить журнал
-          </ClearBtn>
-        )}
-        <SecondaryBtn type="button" onClick={() => setManagerOpen(true)}>
-          ⚙ Биржи
-        </SecondaryBtn>
-        <ImportBtn type="button" onClick={() => setImportOpen(true)}>
-          + Импорт сделок
-        </ImportBtn>
-      </Header>
+      <PageHeader
+        title="Журнал сделок"
+        subtitle="Вставьте скриншот или текст ордеров из брокера — AI распознает исполнения и соберёт их в сделки."
+        actions={
+          <>
+            {state && state.fills.length > 0 && (
+              <Button $variant="danger" type="button" onClick={clearAll}>
+                Очистить журнал
+              </Button>
+            )}
+            <Button $variant="secondary" type="button" onClick={() => setManagerOpen(true)}>
+              ⚙ Биржи
+            </Button>
+            <Button $variant="primary" type="button" onClick={() => setImportOpen(true)}>
+              + Импорт сделок
+            </Button>
+          </>
+        }
+      />
 
       {saveError && <ErrorStrip>⚠ {saveError}</ErrorStrip>}
 

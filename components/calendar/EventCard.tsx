@@ -5,34 +5,8 @@ import styled from "styled-components";
 import { fmtTime, type TzMode } from "@/lib/calendar/datetime";
 import { interpret, surprise, type Tone } from "@/lib/calendar/reactions";
 import { COUNTRY_FLAGS, isEarnings, type MarketEvent } from "@/lib/calendar/types";
+import { Card } from "@/components/ui";
 import { ConfirmationBadge, ImportanceBadge, markerColor, TypeBadge } from "./ui";
-
-const Card = styled.button<{ $c: string }>`
-  display: block;
-  width: 100%;
-  text-align: left;
-  appearance: none;
-  cursor: pointer;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-left: 3px solid ${({ $c }) => $c};
-  border-radius: 10px;
-  padding: 12px 14px;
-  background: ${({ theme }) => theme.colors.zebra};
-  transition:
-    border-color 120ms ease,
-    box-shadow 120ms ease,
-    transform 120ms ease;
-
-  &:hover {
-    border-color: ${({ $c }) => $c};
-    box-shadow: 0 0 0 1px ${({ $c }) => `${$c}55`};
-  }
-
-  &:focus-visible {
-    outline: 2px solid ${({ theme }) => theme.colors.accent};
-    outline-offset: 2px;
-  }
-`;
 
 const TopRow = styled.div`
   display: flex;
@@ -148,7 +122,7 @@ export function EventCard({
     : surprise(event.forecast, event.actual);
 
   return (
-    <Card $c={markerColor(event)} type="button" onClick={() => onSelect(event)}>
+    <Card as="button" $accent={markerColor(event)} $interactive type="button" onClick={() => onSelect(event)}>
       <TopRow>
         <Time>{fmtTime(event.startsAt, tz)}</Time>
         <Flag title={event.country}>{COUNTRY_FLAGS[event.country]}</Flag>

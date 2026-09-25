@@ -1,10 +1,10 @@
 "use client";
 
-// Shared visual primitives for the Market News Calendar feature: color mapping,
-// badges and a few layout atoms reused across panels.
+// Calendar-specific color mapping + badge wrappers. The layout atoms (Page,
+// SectionTitle, Panel) now live in the shared ui layer and are re-exported here
+// so the calendar panels keep importing them from "./ui" unchanged.
 
-import styled from "styled-components";
-
+import { Badge } from "@/components/ui";
 import {
   CONFIRMATION_LABELS,
   IMPORTANCE_LABELS,
@@ -14,6 +14,8 @@ import {
   TYPE_LABELS,
 } from "@/lib/calendar/types";
 import { theme } from "@/lib/theme";
+
+export { Page, SectionTitle, Panel } from "@/components/ui";
 
 /* --- color mapping (static theme, no provider needed) --- */
 
@@ -29,76 +31,18 @@ export function importanceColor(i: Importance): string {
   return i === "high" ? theme.event.high : i === "medium" ? theme.event.medium : theme.event.low;
 }
 
-/* --- layout atoms --- */
-
-export const Page = styled.div`
-  max-width: ${({ theme }) => theme.layout.content};
-  margin: 0 auto;
-  padding: 24px ${({ theme }) => theme.layout.gutter} 64px;
-`;
-
-export const SectionTitle = styled.div`
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 12px;
-`;
-
-export const Panel = styled.div`
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: 12px;
-  padding: 16px;
-  background: ${({ theme }) => theme.colors.zebra};
-`;
-
-/* --- badges --- */
-
-const BadgeBase = styled.span<{ $c: string }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: ${({ $c }) => `${$c}1f`};
-  border: 1px solid ${({ $c }) => `${$c}66`};
-  color: ${({ theme }) => theme.colors.fg};
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-`;
-
-const Dot = styled.span<{ $c: string }>`
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: ${({ $c }) => $c};
-`;
+/* --- badges (backed by the shared Badge primitive) --- */
 
 export function ImportanceBadge({ importance }: { importance: Importance }) {
   return (
-    <BadgeBase $c={importanceColor(importance)}>
-      <Dot $c={importanceColor(importance)} />
+    <Badge color={importanceColor(importance)} dot>
       {IMPORTANCE_LABELS[importance]}
-    </BadgeBase>
+    </Badge>
   );
 }
 
-const NeutralBadge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-`;
-
 export function TypeBadge({ type }: { type: MarketEvent["type"] }) {
-  return <NeutralBadge>{TYPE_LABELS[type]}</NeutralBadge>;
+  return <Badge>{TYPE_LABELS[type]}</Badge>;
 }
 
 const CONFIRMATION_COLOR: Record<Confirmation, string> = {
@@ -111,5 +55,5 @@ const CONFIRMATION_COLOR: Record<Confirmation, string> = {
 export function ConfirmationBadge({ confirmation }: { confirmation: Confirmation }) {
   // Confirmed is the default expectation — only flag the uncertain ones.
   if (confirmation === "confirmed") return null;
-  return <BadgeBase $c={CONFIRMATION_COLOR[confirmation]}>{CONFIRMATION_LABELS[confirmation]}</BadgeBase>;
+  return <Badge color={CONFIRMATION_COLOR[confirmation]}>{CONFIRMATION_LABELS[confirmation]}</Badge>;
 }

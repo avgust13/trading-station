@@ -1,5 +1,11 @@
 // Types shared by the API route (app/api) and the React UI (components/).
 
+/** One daily close for a row's mini-chart. `time` is unix seconds. */
+export interface SparkPoint {
+  time: number;
+  close: number;
+}
+
 /** One computed market row, as returned by GET /api/data. */
 export interface MarketRow {
   /** Display symbol (e.g. "SPY", "CL1!"). */
@@ -26,6 +32,8 @@ export interface MarketRow {
   as_of: string;
   /** Whether `today` came from a live quote or the latest close. */
   price_basis: "live" | "close";
+  /** ~12 months of daily closes for the mini-chart. Absent in older cached snapshots. */
+  spark?: SparkPoint[];
 }
 
 /** Success payload of GET /api/data. */

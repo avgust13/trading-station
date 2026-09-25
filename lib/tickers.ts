@@ -17,6 +17,7 @@ export const TICKERS: Ticker[] = [
   { display: "QQQ", yahoo: "QQQ", name: "Invesco QQQ Trust", desc: "Tracks the Nasdaq-100 — 100 largest non-financial Nasdaq names. Tech-heavy growth proxy." },
   { display: "IWM", yahoo: "IWM", name: "iShares Russell 2000 ETF", desc: "Tracks the Russell 2000 — small-cap US stocks. Classic risk-on / risk-off tell." },
   { display: "SMH", yahoo: "SMH", name: "VanEck Semiconductor ETF", desc: "25 largest semiconductor companies. Key AI / cyclical-growth barometer." },
+  { display: "IGV", yahoo: "IGV", name: "iShares Expanded Tech-Software Sector ETF", desc: "North American software — MSFT, ORCL, CRM, PLTR, ADBE, NOW and more. The benchmark gauge for the software sector." },
   { display: "XBI", yahoo: "XBI", name: "SPDR S&P Biotech ETF", desc: "Equal-weighted biotech basket. High-beta speculative health gauge." },
   { display: "DIA", yahoo: "DIA", name: "SPDR Dow Jones Industrial Avg ETF", desc: "Tracks the Dow 30 — 30 US blue-chip industrials/financials." },
   { display: "XLF", yahoo: "XLF", name: "Financial Select Sector SPDR", desc: "S&P 500 financials — banks, insurers, asset managers, exchanges." },
